@@ -1,3 +1,7 @@
+<p align="right">
+  <b>English</b> | <a href="./README.es.md">Español</a>
+</p>
+
 # 🎬 CajaNegra Studio // Shorts Automation Suite
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
@@ -6,130 +10,108 @@
 [![Whisper](https://img.shields.io/badge/Subtitles-OpenAI%20Whisper-412991?style=for-the-badge)](https://github.com/openai/whisper)
 [![ComfyUI](https://img.shields.io/badge/ImageGen-ComfyUI-black?style=for-the-badge)](https://github.com/comfyanonymous/ComfyUI)
 
-> **CajaNegra Studio** es una estación de trabajo de escritorio y un pipeline automatizado para la creación de videos documentales en formato vertical (YouTube Shorts, Reels, TikTok) sobre curiosidades reales, ciencia y eventos históricos. 
+> **CajaNegra Studio** is a desktop workstation and automated pipeline designed to create vertical documentary videos (YouTube Shorts, Reels, TikTok) focused on real-world curiosities, science, and historical events.
 
-El sistema integra modelos de lenguaje mediante **Groq**, síntesis neuronal de voz con **Edge-TTS**, generación visual local de cómic vía **ComfyUI**, composición cinemática mediante **MoviePy** y subtitulado dinámico palabra por palabra con **OpenAI Whisper** y **FFmpeg**.
-
----
-
-## 🖥️ Interfaz Gráfica (Studio Dashboard)
-
-La aplicación cuenta con una suite visual de tres columnas optimizada con descanso ocular (Charcoal/Slate):
-
-* **Panel de Pipeline:** Selección de temas manuales o rotación automática en 10 categorías documentales (Ciberseguridad, Robos Legendarios, Ciencia Extrema, etc.), barra de progreso e indicador de telemetría en tiempo real.
-* **Centro de Publicación:** Título dinámico optimizado con contador de caracteres, descripción para copiar y pegar y tracking de slots horarios programados.
-* **Monitor de Escenas y Reproductor:** Vista previa en vivo de las escenas generadas por ComfyUI y botón de previsualización con audio nativo sincronizado.
-* **Gestor de Almacenamiento:** Botón para purgar activos intermedios (JSONs, imágenes y audios temporales) protegiendo el video final renderizado.
+The system integrates **Groq** for scriptwriting, **Edge-TTS** for neural voice synthesis, local comic-style generation via **ComfyUI (SDXL)**, cinematic composition through **MoviePy**, and word-by-word dynamic subtitles powered by **OpenAI Whisper** and **FFmpeg**.
 
 ---
 
-## ⚙️ Arquitectura del Pipeline
+## 🖥️ Graphical Interface (Studio Dashboard)
+
+The desktop application features a three-column layout styled with an eye-comfort Charcoal/Slate palette:
+
+* **Pipeline Control Panel:** Supports custom topics or automated cyclic rotation across 10 documentary niches, real-time progress tracking, and telemetry output console.
+* **Publishing Center:** Dynamic title formatting with a character counter, ready-to-copy description templates, and schedule slot checkboxes.
+* **Scene Monitor & Native Preview:** Live monitor tracking ComfyUI scene renders, along with an on-demand preview button with synchronized audio.
+* **Storage Manager:** Dedicated action to safely purge intermediate files (JSON, audio, and scene images) while keeping the final rendered video intact.
+
+---
+
+## ⚙️ Pipeline Architecture
 
 ```text
-[Idea / Rotación Temática] 
+[Topic Input / Cyclic Rotation] 
            │
            ▼
-[Groq LLM] ──────────► Guion estructurado (~80s / 180-200 palabras)
+[Groq LLM] ──────────► Structured Script (~80s / 180-200 words)
            │
-           ├─────────► [Edge-TTS] ──► Síntesis de voz en off (Álvaro)
+           ├─────────► [Edge-TTS] ──► Voiceover Synthesis (Spanish - Álvaro)
            │
-           ├─────────► [Groq Prompts] ──► [ComfyUI Local] ──► 12 Ilustraciones Cómic (SDXL)
-           │
-           ▼
-[MoviePy Engine] ────► Montaje 9:16 + Movimiento Ken Burns + Pista de Música
+           ├─────────► [Groq Prompts] ──► [Local ComfyUI] ──► 12 Comic Frames (SDXL)
            │
            ▼
-[Whisper + FFmpeg] ──► Transcripción temporal y quemado de subtítulos ASS
+[MoviePy Engine] ────► 9:16 Assembly + Ken Burns Zoom + Background Audio Loop
            │
            ▼
-[Outputs / Videos] ──► Short definitivo listo para publicación (.mp4)
+[Whisper + FFmpeg] ──► Word Timestamp Alignment & Burned ASS Subtitles
+           │
+           ▼
+[Outputs / Videos] ──► Production-ready Short (.mp4)
 ```
 
 ---
 
-## 📋 Requisitos Previos
+## 📋 Prerequisites
 
-1. **Python 3.12+** instalado en el sistema.
-2. **FFmpeg** instalado y registrado en las variables de entorno del sistema (`PATH`).
-3. **ComfyUI** ejecutándose localmente (`http://127.0.0.1:8188`) con el checkpoint `arthemyComicsXL_v20.safetensors` (o tu modelo preferido).
-4. Cuenta en **Groq Console** para obtener una API Key gratuita o de pago.
+1. **Python 3.12+** installed.
+2. **FFmpeg** installed and accessible via system `PATH`.
+3. **ComfyUI** running locally at `http://127.0.0.1:8188` with the `arthemyComicsXL_v20.safetensors` checkpoint.
+4. An active **Groq Console** API Key.
 
 ---
 
-## 🚀 Instalación y Puesta en Marcha
+## 🚀 Setup & Installation
 
-### 1. Clonar el repositorio
+### 1. Clone the repository
 ```bash
-git clone [https://github.com/tu-usuario/CajaNegraBot.git]
+git clone [https://github.com/Luis-Alejandro-Navarro-Gutierrez/CajaNegraBot.git](https://github.com/Luis-Alejandro-Navarro-Gutierrez/CajaNegraBot.git)
 cd CajaNegraBot
 ```
 
-### 2. Crear y activar el entorno virtual
+### 2. Set up a virtual environment
 ```bash
 # Windows
 python -m venv venv
 venv\Scripts\activate
 ```
 
-### 3. Instalar dependencias
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configurar variables de entorno
-Crea un archivo `.env` en la raíz del proyecto a partir de la siguiente plantilla:
+### 4. Configure environment variables
+Create a `.env` file in the project root:
 ```ini
-# API Key de Groq ([https://console.groq.com](https://console.groq.com))
-GROQ_API_KEY=tu_groq_api_key_aqui
-
-# Configuración de ComfyUI Local
+GROQ_API_KEY=your_groq_api_key_here
 COMFYUI_URL=[http://127.0.0.1:8188](http://127.0.0.1:8188)
 COMFYUI_CHECKPOINT=arthemyComicsXL_v20.safetensors
 ```
 
-### 5. Iniciar la aplicación
-* **Modo GUI (Recomendado):**
+### 5. Launch the application
+* **GUI Mode (Recommended):**
   ```bash
   python app_gui.py
   ```
-* **Modo CLI (Terminal por lotes):**
+* **CLI Mode (Batch execution):**
   ```bash
   python main.py
   ```
 
 ---
 
-## 📦 Compilación a Ejecutable (.exe)
+## 📦 Build Executable (.exe)
 
-Para generar la versión portable sin consola externa:
+To bundle the application into a standalone binary:
 
 ```bash
 pyinstaller --noconsole --onefile --clean --collect-data whisper --collect-data customtkinter --name "CajaNegra_Studio" app_gui.py
 ```
 
-El ejecutable resultante se ubicará en `dist/CajaNegra_Studio.exe`.
+The compiled binary will be placed inside `dist/CajaNegra_Studio.exe`.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 📄 License
 
-```text
-├── assets/                  # Fondos musicales y recursos estáticos
-├── app_gui.py               # Interfaz gráfica de usuario (CustomTkinter)
-├── generator.py             # Generación de guiones con Groq
-├── images.py                # Cliente API para ComfyUI y generación de prompts
-├── main.py                  # Orquestador del pipeline y rotación temática
-├── metadata.py              # Exportación de títulos y descripciones optimizadas
-├── subtitles.py             # Transcripción con Whisper y subtitulado FFmpeg
-├── tts.py                   # Síntesis de voz neuronal (Edge-TTS)
-├── video.py                 # Montaje de video con MoviePy y animación Ken Burns
-├── requirements.txt         # Librerías necesarias del proyecto
-├── .env.example             # Plantilla de variables de entorno
-└── README.md                # Documentación del proyecto
-```
-
----
-
-## 📄 Licencia
-
-Distribuido bajo la Licencia MIT. Consulta `LICENSE` para más información.
+Distributed under the MIT License. See `LICENSE` for details.
