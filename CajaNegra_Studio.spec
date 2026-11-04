@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = []
+datas = [('assets', 'assets')]
 datas += collect_data_files('whisper')
 datas += collect_data_files('customtkinter')
 
@@ -40,4 +40,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['assets/temp_favicon.ico'],
 )
