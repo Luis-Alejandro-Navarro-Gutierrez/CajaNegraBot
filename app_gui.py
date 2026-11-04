@@ -1,6 +1,8 @@
 """
 CAJANEGRABOT // YOUTUBE SHORTS CREATOR STUDIO PRO
-Tema Slate Charcoal profesional, reinicio seguro de buffers visuales y reproducción bajo demanda.
+- Paleta Slate / Dark Graphite Mate con alto contraste de blancos y grises (anti-fatiga).
+- Icono/favicon automático generado desde assets/Logo.jfif.
+- Tarjeta de producción con rotación automática y visor HD integrado.
 """
 
 import os
@@ -55,33 +57,40 @@ from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
 
 # ========================================================
-# PALETA HÍBRIDA: CHARCOAL & SLATE (DESCANSO VISUAL)
+# PALETA SLATE / GRAPHITE MATE (INSPIRADA EN EL DASHBOARD)
 # ========================================================
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-C_BG = "#0B0F19"             # Azul noche mate / Charcoal
-C_SURFACE = "#111827"        # Pizarra oscura mate
-C_CARD = "#1F2937"           # Gris carbón intermedio
-C_INPUT = "#161F30"          # Fondo de campos de texto
-C_BORDER = "#374151"         # Líneas sutiles sin encandilar
+# Fondos neutros mate (antifatiga, sin negro absoluto)
+C_BG = "#15171C"              # Gris carbón base
+C_SURFACE = "#1E222B"         # Contenedores principales
+C_CARD = "#272C38"            # Tarjetas elevadas
+C_CARD_HOVER = "#323846"      # Hover interactivo
+C_INPUT = "#181B22"           # Campos y áreas de texto
+C_BORDER = "#333A4A"          # Bordes suaves delimitadores
+C_BORDER_ACCENT = "#2DD4BF"   # Borde acento turquesa sutil
 
-C_TEXT_MAIN = "#F9FAFB"      # Blanco hueso
-C_TEXT_BODY = "#D1D5DB"      # Gris claro de lectura
-C_TEXT_MUTED = "#9CA3AF"     # Gris atenuado secundario
+# Textos limpios de alto contraste
+C_TEXT_MAIN = "#FFFFFF"       # Blanco nítido
+C_TEXT_BODY = "#E2E8F0"       # Blanco hueso / gris suave
+C_TEXT_MUTED = "#94A3B8"      # Gris medio legible
 
-C_PRIMARY = "#3B82F6"        # Azul sobrio
-C_PRIMARY_HOVER = "#2563EB"
-C_DANGER = "#EF4444"         # Rojo funcional
-C_DANGER_HOVER = "#DC2626"
-C_SUCCESS = "#10B981"        # Verde esmeralda
+# Acentos selectivos (Dashboard Analytics)
+C_TEAL = "#2DD4BF"            # Turquesa / Menta
+C_TEAL_DARK = "#134E48"       # Contenedor de badge turquesa
+C_PURPLE = "#C084FC"          # Púrpura pastel
+C_AMBER = "#FBBF24"           # Amarillo / Dorado suave
+C_EMERALD = "#34D399"         # Verde estatus
+C_DANGER = "#F87171"          # Rojo coral
+C_DANGER_HOVER = "#EF4444"
 
-HORARIOS_SLOTS = [
-    ("Slot 01", "08:30 AM", "Tráfico Matutino & Despertar"),
-    ("Slot 02", "11:45 AM", "Hora Almuerzo / Break"),
-    ("Slot 03", "02:45 PM", "Pausa Tarde / Desconexión"),
-    ("Slot 04", "06:00 PM", "Regreso a Casa & Ocio"),
-    ("Slot 05", "08:45 PM", "Prime Time Nocturno"),
+HORARIOS_INFO = [
+    ("Slot 01", "08:30 AM", "Matutino"),
+    ("Slot 02", "11:45 AM", "Almuerzo"),
+    ("Slot 03", "02:45 PM", "Pausa Tarde"),
+    ("Slot 04", "06:00 PM", "Regreso"),
+    ("Slot 05", "08:45 PM", "Prime Time"),
 ]
 
 
@@ -100,263 +109,469 @@ class MoviePyCallbackLogger(ProgressBarLogger):
                 self.update_callback(pct, index, total)
 
 
+class VisorFullResolucion(ctk.CTkToplevel):
+    """Ventana modal en alta definición con navegación de imágenes."""
+    def __init__(self, parent, lista_rutas: list[Path], indice_inicial: int = 0):
+        super().__init__(parent)
+        self.lista_rutas = lista_rutas
+        self.indice = indice_inicial
+
+        self.title("Visor de Escenas HD // Full Resolution")
+        self.geometry("860x980")
+        self.minsize(640, 780)
+        self.configure(fg_color=C_BG)
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color=C_SURFACE, height=56, corner_radius=0, border_color=C_BORDER, border_width=1)
+        hdr.pack(fill="x", side="top")
+
+        self.btn_prev = ctk.CTkButton(
+            hdr, text="◀ Anterior", width=110, height=34,
+            fg_color=C_CARD, hover_color=C_CARD_HOVER, border_color=C_BORDER, border_width=1,
+            text_color=C_TEXT_MAIN, font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self._anterior
+        )
+        self.btn_prev.pack(side="left", padx=16, pady=10)
+
+        self.lbl_titulo = ctk.CTkLabel(
+            hdr, text="", font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"), text_color=C_TEXT_MAIN
+        )
+        self.lbl_titulo.pack(side="left", expand=True)
+
+        self.btn_next = ctk.CTkButton(
+            hdr, text="Siguiente ▶", width=110, height=34,
+            fg_color=C_CARD, hover_color=C_CARD_HOVER, border_color=C_BORDER, border_width=1,
+            text_color=C_TEXT_MAIN, font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self._siguiente
+        )
+        self.btn_next.pack(side="right", padx=16, pady=10)
+
+        # Contenedor central
+        self.img_container = ctk.CTkFrame(self, fg_color="#101216", corner_radius=0)
+        self.img_container.pack(fill="both", expand=True)
+
+        self.lbl_imagen = ctk.CTkLabel(self.img_container, text="")
+        self.lbl_imagen.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.bind("<Left>", lambda e: self._anterior())
+        self.bind("<Right>", lambda e: self._siguiente())
+        self.bind("<Escape>", lambda e: self.destroy())
+
+        self._renderizar_escena()
+
+    def _renderizar_escena(self):
+        if not self.lista_rutas or self.indice >= len(self.lista_rutas):
+            return
+
+        ruta = self.lista_rutas[self.indice]
+        self.lbl_titulo.configure(text=f"Escena {self.indice + 1} de {len(self.lista_rutas)}  •  {ruta.name}")
+
+        try:
+            pil_img = Image.open(ruta)
+            orig_w, orig_h = pil_img.size
+
+            max_w, max_h = 780, 860
+            ratio = min(max_w / orig_w, max_h / orig_h)
+            display_w = int(orig_w * ratio)
+            display_h = int(orig_h * ratio)
+
+            pil_resized = pil_img.resize((display_w, display_h), Image.Resampling.LANCZOS)
+            ctk_img = ctk.CTkImage(light_image=pil_resized, dark_image=pil_resized, size=(display_w, display_h))
+
+            self.lbl_imagen.configure(image=ctk_img, text="")
+            self.lbl_imagen.image = ctk_img
+        except Exception as e:
+            self.lbl_imagen.configure(text=f"Error cargando imagen: {e}")
+
+        self.btn_prev.configure(state="normal" if self.indice > 0 else "disabled")
+        self.btn_next.configure(state="normal" if self.indice < len(self.lista_rutas) - 1 else "disabled")
+
+    def _anterior(self):
+        if self.indice > 0:
+            self.indice -= 1
+            self._renderizar_escena()
+
+    def _siguiente(self):
+        if self.indice < len(self.lista_rutas) - 1:
+            self.indice += 1
+            self._renderizar_escena()
+
+
 class CajaNegraStudio(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("CajaNegra Studio // Shorts Automation Suite")
-        self.geometry("1480x860")
-        self.minsize(1380, 800)
+        self.title("CajaNegra Studio // Executive Automation Suite")
+        self.geometry("1620x940")
+        self.minsize(1440, 860)
         self.configure(fg_color=C_BG)
 
         self.ultimo_nombre_base = None
         self.ultimo_video_path = None
         self.is_running = False
 
+        self.imagenes_generadas: list[Path] = []
+        self.indice_imagen_activa = 0
+
+        self._establecer_icono_aplicacion()
         self._construir_layout()
 
         sys.stdout = StreamRedirector(self._log_directo)
         sys.stderr = StreamRedirector(self._log_directo)
 
+    def _establecer_icono_aplicacion(self):
+        """Convierte y asigna el favicon nativo de la ventana desde el archivo en assets/."""
+        posibles_logos = [
+            BASE_DIR / "assets" / "Logo.jfif",
+            BASE_DIR / "assets" / "logo.jfif",
+            BASE_DIR / "assets" / "logo.png",
+            BASE_DIR / "assets" / "Logo.png",
+            BASE_DIR / "assets" / "logo.jpg",
+        ]
+        ruta_logo = next((p for p in posibles_logos if p.exists()), None)
+        if ruta_logo:
+            try:
+                ico_path = BASE_DIR / "assets" / "temp_favicon.ico"
+                if not ico_path.exists():
+                    img = Image.open(ruta_logo).convert("RGBA")
+                    img.save(ico_path, format="ICO", sizes=[(32, 32), (48, 48), (64, 64)])
+                self.iconbitmap(str(ico_path))
+            except Exception:
+                pass
+
     def _construir_layout(self):
-        self.grid_columnconfigure(0, weight=0, minsize=460)
-        self.grid_columnconfigure(1, weight=1, minsize=520)
-        self.grid_columnconfigure(2, weight=0, minsize=380)
+        self.grid_columnconfigure(0, weight=0, minsize=510)
+        self.grid_columnconfigure(1, weight=1, minsize=480)
+        self.grid_columnconfigure(2, weight=0, minsize=470)
         self.grid_rowconfigure(0, weight=1)
 
         # ========================================================
-        # COLUMNA 1: PRODUCCIÓN Y TELEMETRÍA
+        # COLUMNA 1: CONTROL & TELEMETRÍA (SLATE MATE)
         # ========================================================
         self.col1 = ctk.CTkFrame(
-            self, width=460, fg_color=C_SURFACE, corner_radius=12, border_color=C_BORDER, border_width=1
+            self, width=510, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col1.grid(row=0, column=0, padx=(16, 8), pady=16, sticky="nsew")
         self.col1.grid_propagate(False)
 
+        # Header con Logo
         hdr_1 = ctk.CTkFrame(self.col1, fg_color="transparent")
-        hdr_1.pack(fill="x", padx=18, pady=(18, 6))
+        hdr_1.pack(fill="x", padx=22, pady=(20, 8))
 
-        ctk.CTkLabel(
-            hdr_1,
-            text="PIPELINE DE PRODUCCIÓN",
-            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
-            text_color=C_PRIMARY,
-            fg_color="#1E3A8A",
+        logo_box = ctk.CTkFrame(hdr_1, fg_color="transparent")
+        logo_box.pack(fill="x")
+
+        posibles_logos = [
+            BASE_DIR / "assets" / "Logo.jfif",
+            BASE_DIR / "assets" / "logo.jfif",
+            BASE_DIR / "assets" / "logo.png",
+            BASE_DIR / "assets" / "Logo.png",
+            BASE_DIR / "assets" / "logo.jpg",
+        ]
+        ruta_logo = next((p for p in posibles_logos if p.exists()), None)
+        if ruta_logo:
+            try:
+                pil_logo = Image.open(ruta_logo).convert("RGBA").resize((52, 52), Image.Resampling.LANCZOS)
+                self.ctk_logo = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(52, 52))
+                lbl_logo = ctk.CTkLabel(logo_box, image=self.ctk_logo, text="")
+                lbl_logo.pack(side="left", padx=(0, 14))
+            except Exception:
+                pass
+
+        title_texts = ctk.CTkFrame(logo_box, fg_color="transparent")
+        title_texts.pack(side="left", fill="both")
+
+        tag_badge = ctk.CTkLabel(
+            title_texts,
+            text="⚡ AUTOMATION ENGINE",
+            font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),
+            text_color=C_TEAL,
+            fg_color=C_TEAL_DARK,
             corner_radius=6,
             padx=8,
-            pady=3,
-        ).pack(anchor="w")
+            pady=2,
+        )
+        tag_badge.pack(anchor="w")
 
         ctk.CTkLabel(
-            hdr_1,
+            title_texts,
             text="CajaNegra Studio",
             font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),
             text_color=C_TEXT_MAIN,
-        ).pack(anchor="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(2, 0))
 
-        # Tarjeta Input
-        card_in = ctk.CTkFrame(self.col1, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
-        card_in.pack(fill="x", padx=18, pady=8)
+        # Tarjeta Descriptiva del Motor
+        card_desc = ctk.CTkFrame(
+            self.col1, fg_color=C_CARD, corner_radius=14, border_color=C_BORDER, border_width=1
+        )
+        card_desc.pack(fill="x", padx=20, pady=8)
 
         ctk.CTkLabel(
-            card_in,
-            text="DIRECTRIZ DE TEMA",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=C_TEXT_MUTED,
-        ).pack(anchor="w", padx=14, pady=(10, 4))
+            card_desc,
+            text="SISTEMA DE PRODUCCIÓN DOCUMENTAL",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=C_TEAL,
+        ).pack(anchor="w", padx=16, pady=(12, 4))
 
-        self.tema_entry = ctk.CTkEntry(
-            card_in,
-            placeholder_text="Dejar en blanco para rotación cíclica (10 categorías)...",
-            height=38,
-            fg_color=C_INPUT,
-            border_color=C_BORDER,
-            text_color=C_TEXT_MAIN,
-            font=ctk.CTkFont(size=12),
+        desc_pipeline_texto = (
+            "Pipeline autónomo configurado para rotación continua entre 10 categorías documentales "
+            "(Ciberseguridad, Misterios, Ciencia Extrema, Robos y Eventos Históricos). "
+            "Genera guion con Groq, voz neuronal con Edge-TTS, 12 escenas visuales en SDXL, "
+            "montaje vertical 9:16 y subtítulos automáticos con Whisper."
         )
-        self.tema_entry.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(
+            card_desc,
+            text=desc_pipeline_texto,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=C_TEXT_BODY,
+            justify="left",
+            wraplength=430,
+        ).pack(anchor="w", padx=16, pady=(0, 12))
 
         self.btn_generar = ctk.CTkButton(
-            card_in,
-            text="Iniciar Producción",
+            card_desc,
+            text="⚡ Iniciar Producción Cíclica",
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
-            height=40,
-            fg_color=C_PRIMARY,
-            hover_color=C_PRIMARY_HOVER,
+            height=42,
+            fg_color="#0F766E",
+            hover_color="#115E59",
+            text_color="#FFFFFF",
+            corner_radius=8,
             command=self._iniciar_produccion_hilo,
         )
-        self.btn_generar.pack(fill="x", padx=14, pady=(0, 14))
+        self.btn_generar.pack(fill="x", padx=16, pady=(0, 16))
 
-        # Estado y progreso
-        stat_box = ctk.CTkFrame(self.col1, fg_color="transparent")
-        stat_box.pack(fill="x", padx=18, pady=2)
+        # Indicador de Estado y Barra de Progreso
+        stat_box = ctk.CTkFrame(self.col1, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
+        stat_box.pack(fill="x", padx=20, pady=4)
+
+        stat_inner = ctk.CTkFrame(stat_box, fg_color="transparent")
+        stat_inner.pack(fill="x", padx=14, pady=10)
 
         self.led_indicator = ctk.CTkLabel(
-            stat_box, text="● EN ESPERA", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_SUCCESS
+            stat_inner, text="● EN ESPERA", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_EMERALD
         )
         self.led_indicator.pack(side="left")
 
         self.lbl_status_text = ctk.CTkLabel(
-            stat_box, text="Listo", font=ctk.CTkFont(family="Segoe UI", size=11), text_color=C_TEXT_MUTED, width=280, anchor="e"
+            stat_inner, text="Listo para procesar", font=ctk.CTkFont(family="Segoe UI", size=11), text_color=C_TEXT_MUTED, anchor="e"
         )
         self.lbl_status_text.pack(side="right")
 
-        self.progress_bar = ctk.CTkProgressBar(self.col1, height=6, fg_color="#1E293B", progress_color=C_PRIMARY)
+        self.progress_bar = ctk.CTkProgressBar(
+            self.col1, height=6, fg_color="#181B22", progress_color=C_TEAL, corner_radius=3
+        )
         self.progress_bar.set(0)
-        self.progress_bar.pack(fill="x", padx=18, pady=(4, 10))
+        self.progress_bar.pack(fill="x", padx=22, pady=(4, 10))
 
+        # Consola de Telemetría
         ctk.CTkLabel(
             self.col1,
-            text="CONSOLA DE SALIDA Y TELEMETRÍA",
+            text="TELEMETRÍA & LOGS DE EJECUCIÓN",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             text_color=C_TEXT_MUTED,
-        ).pack(anchor="w", padx=18, pady=(4, 4))
+        ).pack(anchor="w", padx=22, pady=(4, 4))
 
         self.txt_logs = ctk.CTkTextbox(
             self.col1,
-            fg_color="#0F172A",
+            fg_color=C_INPUT,
             text_color="#93C5FD",
-            font=ctk.CTkFont(family="Consolas", size=10),
-            corner_radius=8,
+            font=ctk.CTkFont(family="Consolas", size=11),
+            corner_radius=10,
             border_color=C_BORDER,
             border_width=1,
             wrap="char",
         )
-        self.txt_logs.pack(fill="both", expand=True, padx=18, pady=(0, 18))
+        self.txt_logs.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
         # ========================================================
         # COLUMNA 2: GESTIÓN DE PUBLICACIÓN & YOUTUBE
         # ========================================================
         self.col2 = ctk.CTkFrame(
-            self, fg_color=C_SURFACE, corner_radius=12, border_color=C_BORDER, border_width=1
+            self, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col2.grid(row=0, column=1, padx=8, pady=16, sticky="nsew")
 
         ctk.CTkLabel(
             self.col2,
             text="Centro de Publicación",
-            font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),
+            font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
             text_color=C_TEXT_MAIN,
-        ).pack(anchor="w", padx=18, pady=(18, 6))
+        ).pack(anchor="w", padx=22, pady=(20, 10))
 
-        # Título
-        card_t = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
-        card_t.pack(fill="x", padx=18, pady=4)
+        # Tarjeta Título
+        card_t = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        card_t.pack(fill="x", padx=20, pady=4)
 
         t_head = ctk.CTkFrame(card_t, fg_color="transparent")
-        t_head.pack(fill="x", padx=12, pady=(6, 2))
-        ctk.CTkLabel(t_head, text="TÍTULO + HASHTAGS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color="#60A5FA").pack(side="left")
-        self.lbl_char_count = ctk.CTkLabel(t_head, text="0/100", font=ctk.CTkFont(family="Segoe UI", size=10), text_color=C_TEXT_MUTED)
+        t_head.pack(fill="x", padx=16, pady=(10, 4))
+        ctk.CTkLabel(
+            t_head, text="TÍTULO + HASHTAGS VIRALES", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
+        ).pack(side="left")
+        self.lbl_char_count = ctk.CTkLabel(
+            t_head, text="0/100", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MUTED
+        )
         self.lbl_char_count.pack(side="right")
 
-        self.entry_titulo = ctk.CTkEntry(card_t, height=34, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11))
-        self.entry_titulo.pack(fill="x", padx=12, pady=2)
+        self.entry_titulo = ctk.CTkEntry(
+            card_t, height=38, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=12), corner_radius=8
+        )
+        self.entry_titulo.pack(fill="x", padx=16, pady=4)
 
-        ctk.CTkButton(card_t, text="Copiar Título", height=24, fg_color="#374151", hover_color="#4B5563", text_color=C_TEXT_MAIN, command=self._copiar_titulo).pack(anchor="e", padx=12, pady=(2, 6))
+        ctk.CTkButton(
+            card_t, text="Copiar Título", height=28, width=120, fg_color="#333A4A", hover_color="#3F475A",
+            text_color=C_TEXT_MAIN, corner_radius=6, command=self._copiar_titulo
+        ).pack(anchor="e", padx=16, pady=(2, 10))
 
-        # Descripción
-        card_d = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
-        card_d.pack(fill="both", expand=True, padx=18, pady=6)
+        # Tarjeta Descripción
+        card_d = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        card_d.pack(fill="both", expand=True, padx=20, pady=6)
 
         d_head = ctk.CTkFrame(card_d, fg_color="transparent")
-        d_head.pack(fill="x", padx=12, pady=(8, 2))
-        ctk.CTkLabel(d_head, text="DESCRIPCIÓN Y METADATOS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color="#60A5FA").pack(side="left")
+        d_head.pack(fill="x", padx=16, pady=(10, 4))
+        ctk.CTkLabel(
+            d_head, text="DESCRIPCIÓN Y METADATOS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
+        ).pack(side="left")
 
-        self.txt_desc = ctk.CTkTextbox(card_d, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word")
-        self.txt_desc.pack(fill="both", expand=True, padx=12, pady=4)
+        self.txt_desc = ctk.CTkTextbox(
+            card_d, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word", corner_radius=8
+        )
+        self.txt_desc.pack(fill="both", expand=True, padx=16, pady=4)
 
-        ctk.CTkButton(card_d, text="Copiar Descripción", height=24, fg_color="#374151", hover_color="#4B5563", text_color=C_TEXT_MAIN, command=self._copiar_descripcion).pack(anchor="e", padx=12, pady=(2, 8))
+        ctk.CTkButton(
+            card_d, text="Copiar Descripción", height=28, width=140, fg_color="#333A4A", hover_color="#3F475A",
+            text_color=C_TEXT_MAIN, corner_radius=6, command=self._copiar_descripcion
+        ).pack(anchor="e", padx=16, pady=(2, 10))
 
-        # Slots
-        card_s = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
-        card_s.pack(fill="x", padx=18, pady=4)
+        # Tarjeta de Horarios Informativa (Estilo tarjetas del dashboard)
+        note_card = ctk.CTkFrame(
+            self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
+        )
+        note_card.pack(fill="x", padx=20, pady=4)
 
-        ctk.CTkLabel(card_s, text="HORARIOS PROGRAMADOS (A DÍA VENCIDO)", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color="#F59E0B").pack(anchor="w", padx=12, pady=(6, 2))
+        note_head = ctk.CTkFrame(note_card, fg_color="transparent")
+        note_head.pack(fill="x", padx=16, pady=(8, 4))
+        ctk.CTkLabel(
+            note_head, text="SCHEDULE & SLOTS RECOMENDADOS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_AMBER
+        ).pack(anchor="w")
 
-        self.slot_checkboxes = []
-        for slot_tag, hora, contexto in HORARIOS_SLOTS:
-            r_s = ctk.CTkFrame(card_s, fg_color=C_INPUT, corner_radius=6, border_color=C_BORDER, border_width=1)
-            r_s.pack(fill="x", padx=12, pady=2)
+        slots_grid = ctk.CTkFrame(note_card, fg_color="transparent")
+        slots_grid.pack(fill="x", padx=12, pady=(0, 10))
 
-            cb = ctk.CTkCheckBox(
-                r_s, text=f"{hora} [{slot_tag}]", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-                checkbox_height=16, checkbox_width=16, border_color="#64748B", fg_color=C_PRIMARY, text_color=C_TEXT_MAIN
+        for tag, hora, contexto in HORARIOS_INFO:
+            b_frame = ctk.CTkFrame(
+                slots_grid, fg_color=C_INPUT, corner_radius=8, border_color=C_BORDER, border_width=1
             )
-            cb.pack(side="left", padx=8, pady=3)
-            ctk.CTkLabel(r_s, text=f"— {contexto}", font=ctk.CTkFont(size=10), text_color=C_TEXT_MUTED).pack(side="left")
-            self.slot_checkboxes.append(cb)
+            b_frame.pack(side="left", expand=True, fill="x", padx=4, pady=2)
+            ctk.CTkLabel(
+                b_frame, text=hora, font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_TEXT_MAIN
+            ).pack(pady=(4, 0))
+            ctk.CTkLabel(
+                b_frame, text=contexto, font=ctk.CTkFont(size=9), text_color=C_TEXT_MUTED
+            ).pack(pady=(0, 4))
 
-        # Botón de limpieza selectiva
-        actions_row = ctk.CTkFrame(self.col2, fg_color="transparent")
-        actions_row.pack(fill="x", padx=18, pady=(8, 18))
-        actions_row.grid_columnconfigure(0, weight=1)
-
+        # Botón Limpieza
         self.btn_limpieza = ctk.CTkButton(
-            actions_row,
+            self.col2,
             text="Liberar Espacio (Conservar Video Final)",
-            height=36,
+            height=38,
             fg_color=C_DANGER,
             hover_color=C_DANGER_HOVER,
             text_color="#FFFFFF",
-            font=ctk.CTkFont(family="Segoe UI", weight="bold", size=11),
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", weight="bold", size=12),
             command=self._limpiar_archivos_disco,
         )
-        self.btn_limpieza.grid(row=0, column=0, sticky="ew")
+        self.btn_limpieza.pack(fill="x", padx=20, pady=(8, 20))
 
         # ========================================================
-        # COLUMNA 3: PREVIEW EN VIVO Y MONITOR 9:16
+        # COLUMNA 3: MONITOR & ÁLBUM DE ESCENAS
         # ========================================================
         self.col3 = ctk.CTkFrame(
-            self, width=380, fg_color=C_SURFACE, corner_radius=12, border_color=C_BORDER, border_width=1
+            self, width=470, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col3.grid(row=0, column=2, padx=(8, 16), pady=16, sticky="nsew")
         self.col3.grid_propagate(False)
 
         hdr_3 = ctk.CTkFrame(self.col3, fg_color="transparent")
-        hdr_3.pack(fill="x", padx=18, pady=(18, 6))
+        hdr_3.pack(fill="x", padx=20, pady=(20, 6))
 
         self.lbl_media_title = ctk.CTkLabel(
-            hdr_3, text="Monitor de Escenas", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"), text_color=C_TEXT_MAIN
+            hdr_3, text="Monitor & Álbum HD", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"), text_color=C_TEXT_MAIN
         )
         self.lbl_media_title.pack(anchor="w")
 
         self.lbl_media_badge = ctk.CTkLabel(
-            hdr_3, text="EN ESPERA", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MUTED
+            hdr_3, text="● EN ESPERA", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MUTED
         )
         self.lbl_media_badge.pack(anchor="w")
 
-        # Marco vertical para la imagen
+        # Visor 9:16
         self.preview_frame = ctk.CTkFrame(
-            self.col3, fg_color="#0F172A", corner_radius=10, border_color=C_BORDER, border_width=1
+            self.col3, fg_color=C_INPUT, corner_radius=14, border_color=C_BORDER, border_width=1, height=440
         )
-        self.preview_frame.pack(fill="both", expand=True, padx=18, pady=8)
+        self.preview_frame.pack(fill="x", padx=20, pady=(6, 6))
+        self.preview_frame.pack_propagate(False)
 
         self.lbl_canvas_preview = ctk.CTkLabel(
             self.preview_frame, text="Esperando render de imágenes...", text_color=C_TEXT_MUTED, font=ctk.CTkFont(size=12)
         )
         self.lbl_canvas_preview.place(relx=0.5, rely=0.5, anchor="center")
 
+        # Botón para Full Resolución
+        self.btn_ver_full = ctk.CTkButton(
+            self.col3,
+            text="🔍 Ver a Resolución Completa (1024x1792)",
+            height=32,
+            fg_color=C_CARD,
+            hover_color=C_CARD_HOVER,
+            border_color=C_BORDER,
+            border_width=1,
+            text_color=C_TEXT_MAIN,
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            state="disabled",
+            command=self._abrir_visor_hd,
+        )
+        self.btn_ver_full.pack(fill="x", padx=20, pady=(2, 6))
+
+        # Tira / Álbum Horizontal de Miniaturas
+        ctk.CTkLabel(
+            self.col3,
+            text="GALERÍA DE ESCENAS GENERADAS",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=C_TEXT_MUTED,
+        ).pack(anchor="w", padx=20, pady=(6, 2))
+
+        self.album_scroll = ctk.CTkScrollableFrame(
+            self.col3, fg_color=C_INPUT, corner_radius=10, border_color=C_BORDER, border_width=1, height=135, orientation="horizontal"
+        )
+        self.album_scroll.pack(fill="x", padx=20, pady=(2, 8))
+
+        self.botones_miniaturas: list[ctk.CTkButton] = []
+
+        # Botón de reproducción de video
         ctrl_box = ctk.CTkFrame(self.col3, fg_color="transparent")
-        ctrl_box.pack(fill="x", padx=18, pady=(4, 18))
+        ctrl_box.pack(fill="x", padx=20, pady=(4, 20), side="bottom")
 
         self.btn_toggle_video = ctk.CTkButton(
             ctrl_box,
             text="Previsualizar Short",
-            height=38,
-            fg_color="#1E293B",
-            hover_color="#1E293B",
-            text_color="#64748B",
-            font=ctk.CTkFont(family="Segoe UI", weight="bold"),
+            height=42,
+            fg_color=C_CARD,
+            hover_color=C_CARD_HOVER,
+            text_color=C_TEXT_MUTED,
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             state="disabled",
             command=self._abrir_video_reproductor,
         )
-        self.btn_toggle_video.pack(fill="x", pady=2)
+        self.btn_toggle_video.pack(fill="x")
 
     # ========================================================
-    # HELPER SEGURO PARA VACIAR EL CANVAS (EVITA TCLERROR)
+    # HELPER DE LIMPIEZA SEGURO (EVITA TCLERROR)
     # ========================================================
     def _limpiar_monitor_preview(self, mensaje: str):
-        """Resetea el widget de vista previa sin provocar fallos pyimage en Tkinter."""
         try:
             img_vacia = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
             ctk_vacia = ctk.CTkImage(light_image=img_vacia, dark_image=img_vacia, size=(1, 1))
@@ -368,8 +583,14 @@ class CajaNegraStudio(ctk.CTk):
             except Exception:
                 pass
 
+        for btn in self.botones_miniaturas:
+            btn.destroy()
+        self.botones_miniaturas.clear()
+        self.imagenes_generadas.clear()
+        self.btn_ver_full.configure(state="disabled")
+
     # ========================================================
-    # TELEMETRÍA Y CONTROL DE PROGRESO
+    # TELEMETRÍA Y CONTROL
     # ========================================================
     def _log_directo(self, texto: str):
         try:
@@ -382,14 +603,14 @@ class CajaNegraStudio(ctk.CTk):
         self.txt_logs.see("end")
 
         texto_limpio = texto.strip()
-        resumen = texto_limpio[:39] + "..." if len(texto_limpio) > 42 else texto_limpio
+        resumen = texto_limpio[:42] + "..." if len(texto_limpio) > 45 else texto_limpio
         self.lbl_status_text.configure(text=resumen)
 
     def _actualizar_progreso_video(self, pct: int, frame: int, total: int):
         def ui_update():
             progreso_global = 0.75 + (pct / 100.0) * 0.13
             self.progress_bar.set(progreso_global)
-            self.lbl_status_text.configure(text=f"Renderizando Video: {pct}% ({frame}/{total})")
+            self.lbl_status_text.configure(text=f"Render Video: {pct}% ({frame}/{total})")
         self.after(0, ui_update)
 
     def _iniciar_produccion_hilo(self):
@@ -397,15 +618,14 @@ class CajaNegraStudio(ctk.CTk):
             return
         self.is_running = True
 
-        # Reset seguro sin colisión de imágenes en Tcl
         self.ultimo_nombre_base = None
         self.ultimo_video_path = None
         self._limpiar_monitor_preview("Iniciando pipeline en ComfyUI...")
 
-        self.btn_generar.configure(state="disabled", text="Procesando Pipeline...", fg_color="#334155")
-        self.btn_toggle_video.configure(state="disabled", text="Generando Short...", fg_color="#1E293B", text_color="#64748B")
-        self.led_indicator.configure(text="● GENERANDO", text_color=C_PRIMARY)
-        self.lbl_media_badge.configure(text="PREPARANDO GUION Y VOZ", text_color=C_PRIMARY)
+        self.btn_generar.configure(state="disabled", text="Procesando Pipeline...", fg_color="#1F2937")
+        self.btn_toggle_video.configure(state="disabled", text="Generando Short...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.led_indicator.configure(text="● GENERANDO", text_color=C_TEAL)
+        self.lbl_media_badge.configure(text="PREPARANDO GUION & VOZ", text_color=C_TEAL)
         self.progress_bar.set(0.05)
 
         hilo = threading.Thread(target=self._pipeline_worker, daemon=True)
@@ -413,16 +633,9 @@ class CajaNegraStudio(ctk.CTk):
 
     def _pipeline_worker(self):
         try:
-            tema_manual = self.tema_entry.get().strip()
-
-            if tema_manual:
-                tema = tema_manual
-                indice_cat = -1
-                self.log(f"Tema manual: '{tema}'")
-            else:
-                self.log("Consultando Groq con rotación temática (10 categorías)...")
-                tema, indice_cat = pipeline_main.obtener_tema_automatico()
-                self.log(f"Tema seleccionado: '{tema}'")
+            self.log("Consultando Groq con rotación temática (10 categorías)...")
+            tema, indice_cat = pipeline_main.obtener_tema_automatico()
+            self.log(f"Tema seleccionado: '{tema}'")
 
             self.progress_bar.set(0.15)
 
@@ -449,7 +662,7 @@ class CajaNegraStudio(ctk.CTk):
             self.progress_bar.set(0.45)
 
             # 3. ComfyUI con Live Feed
-            self.lbl_media_badge.configure(text="RENDERIZANDO EN COMFYUI", text_color=C_PRIMARY)
+            self.lbl_media_badge.configure(text="RENDERIZANDO EN COMFYUI", text_color=C_PURPLE)
             stop_watcher = threading.Event()
             watcher_thread = threading.Thread(
                 target=self._vigilar_imagenes_en_directo, args=(nombre_base, stop_watcher), daemon=True
@@ -482,8 +695,8 @@ class CajaNegraStudio(ctk.CTk):
                 pipeline_main.registrar_tema_en_historial(tema, indice_cat)
 
             self.progress_bar.set(1.0)
-            self.led_indicator.configure(text="● COMPLETADO", text_color=C_SUCCESS)
-            self.lbl_media_badge.configure(text="VIDEO PRODUCIDO CON ÉXITO", text_color=C_SUCCESS)
+            self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)
+            self.lbl_media_badge.configure(text="VIDEO PRODUCIDO CON ÉXITO", text_color=C_EMERALD)
             self.log("✔ PROCESO FINALIZADO. Short listo para publicación.")
 
             self._actualizar_campos_metadata(ruta_meta)
@@ -495,19 +708,19 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"❌ Fallo crítico en el proceso: {e}")
         finally:
             self.is_running = False
-            self.btn_generar.configure(state="normal", text="Iniciar Producción", fg_color=C_PRIMARY)
+            self.btn_generar.configure(state="normal", text="⚡ Iniciar Producción Cíclica", fg_color="#0F766E")
 
     def _activar_reproduccion_completada(self):
         self.btn_toggle_video.configure(
             state="normal",
             text="▶ Reproducir Video Final (Con Audio)",
-            fg_color=C_PRIMARY,
-            hover_color=C_PRIMARY_HOVER,
+            fg_color="#059669",
+            hover_color="#047857",
             text_color="#FFFFFF"
         )
 
     # ========================================================
-    # MONITOR EN VIVO DE IMÁGENES
+    # MONITOR Y ÁLBUM DE ESCENAS
     # ========================================================
     def _vigilar_imagenes_en_directo(self, nombre_base: str, stop_event: threading.Event):
         img_dir = BASE_DIR / "outputs" / "images"
@@ -522,27 +735,68 @@ class CajaNegraStudio(ctk.CTk):
                 for img_path in encontradas:
                     if img_path not in imagenes_mostradas:
                         imagenes_mostradas.add(img_path)
-                        num = img_path.stem.split("_escena_")[-1]
-                        self.after(0, self._mostrar_imagen_en_canvas, img_path, f"Escena {num}/12 generada")
+                        num = int(img_path.stem.split("_escena_")[-1]) if "_escena_" in img_path.stem else len(imagenes_mostradas)
+                        self.after(0, self._agregar_imagen_a_album, img_path, num)
             time.sleep(0.8)
+
+    def _agregar_imagen_a_album(self, ruta_img: Path, num_escena: int):
+        if ruta_img not in self.imagenes_generadas:
+            self.imagenes_generadas.append(ruta_img)
+
+        idx = len(self.imagenes_generadas) - 1
+        self.indice_imagen_activa = idx
+
+        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena}/12 generada")
+        self.btn_ver_full.configure(state="normal")
+
+        try:
+            pil_thumb = Image.open(ruta_img)
+            pil_thumb = pil_thumb.resize((65, 115), Image.Resampling.LANCZOS)
+            ctk_thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=(65, 115))
+
+            btn_thumb = ctk.CTkButton(
+                self.album_scroll,
+                image=ctk_thumb,
+                text=f"E{num_escena}",
+                compound="top",
+                width=70,
+                height=125,
+                fg_color=C_CARD,
+                hover_color=C_CARD_HOVER,
+                border_color=C_BORDER,
+                border_width=1,
+                corner_radius=8,
+                font=ctk.CTkFont(size=9, weight="bold"),
+                command=lambda i=idx, r=ruta_img, n=num_escena: self._seleccionar_desde_album(i, r, n)
+            )
+            btn_thumb.pack(side="left", padx=4, pady=2)
+            self.botones_miniaturas.append(btn_thumb)
+        except Exception:
+            pass
+
+    def _seleccionar_desde_album(self, indice: int, ruta_img: Path, num_escena: int):
+        self.indice_imagen_activa = indice
+        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena}/12 seleccionada")
 
     def _mostrar_imagen_en_canvas(self, ruta_img: Path, subtexto: str = ""):
         try:
             pil_img = Image.open(ruta_img)
-            w, h = 310, 550
+            w, h = 240, 426
             pil_img = pil_img.resize((w, h), Image.Resampling.LANCZOS)
             ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(w, h))
 
             self.lbl_canvas_preview.configure(image=ctk_img, text="")
             self.lbl_canvas_preview.image = ctk_img
             if subtexto:
-                self.lbl_media_badge.configure(text=subtexto.upper(), text_color="#60A5FA")
+                self.lbl_media_badge.configure(text=subtexto.upper(), text_color=C_TEAL)
         except Exception:
             pass
 
-    # ========================================================
-    # REPRODUCCIÓN NATIVA CON AUDIO (SOLO AL HACER CLIC)
-    # ========================================================
+    def _abrir_visor_hd(self):
+        if not self.imagenes_generadas:
+            return
+        VisorFullResolucion(self, self.imagenes_generadas, self.indice_imagen_activa)
+
     def _abrir_video_reproductor(self):
         if self.ultimo_video_path and self.ultimo_video_path.exists():
             try:
@@ -600,11 +854,7 @@ class CajaNegraStudio(ctk.CTk):
             pyperclip.copy(d)
             self.log("📋 Descripción copiada al portapapeles.")
 
-    # ========================================================
-    # PURGA SELECTIVA (CONSERVACIÓN DEL VIDEO FINAL)
-    # ========================================================
     def _limpiar_archivos_disco(self):
-        """Elimina únicamente temporales (audio, json, metadata, prompts, imágenes) y CONSERVA el video final."""
         if not self.ultimo_nombre_base:
             self.log("⚠️ No hay elementos en buffer para limpiar.")
             return
