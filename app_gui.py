@@ -3,6 +3,7 @@ CAJANEGRABOT // YOUTUBE SHORTS CREATOR STUDIO PRO
 - Paleta Slate / Dark Graphite Mate con alto contraste de blancos y grises (anti-fatiga).
 - Icono/favicon automático generado desde assets/Logo.jfif.
 - Tarjeta de producción con rotación automática y visor HD integrado.
+- Sistema Bilingüe Nativo: [ES] La Caja Negra  |  [EN] The Black Box Archives.
 """
 
 import os
@@ -47,9 +48,15 @@ load_dotenv(BASE_DIR / ".env")
 import customtkinter as ctk
 import pyperclip
 
-# Importaciones del pipeline
+# Importaciones del pipeline bilingüe
 import main as pipeline_main
-from generator import CIERRE_VIDEO, generar_guion, guardar_guion
+from generator import (
+    CIERRE_VIDEO_ES,
+    CIERRE_VIDEO_EN,
+    generar_guion,
+    traducir_guion_a_ingles,
+    guardar_guion,
+)
 from tts import convertir_texto_a_voz
 from images import generar_secuencia_imagenes
 from video import montar_video_final
@@ -201,13 +208,15 @@ class CajaNegraStudio(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("CajaNegra Studio // Executive Automation Suite")
+        self.title("CajaNegra Studio // Executive Automation Suite (Dual Language)")
         self.geometry("1620x940")
         self.minsize(1440, 860)
         self.configure(fg_color=C_BG)
 
-        self.ultimo_nombre_base = None
-        self.ultimo_video_path = None
+        self.ultimo_nombre_raiz = None
+        self.ultimo_video_path_es = None
+        self.ultimo_video_path_en = None
+        self.canal_activo = "es"  # "es" o "en"
         self.is_running = False
 
         self.imagenes_generadas: list[Path] = []
@@ -283,7 +292,7 @@ class CajaNegraStudio(ctk.CTk):
 
         tag_badge = ctk.CTkLabel(
             title_texts,
-            text="⚡ AUTOMATION ENGINE",
+            text="⚡ DUAL-LANGUAGE PIPELINE",
             font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),
             text_color=C_TEAL,
             fg_color=C_TEAL_DARK,
@@ -308,16 +317,16 @@ class CajaNegraStudio(ctk.CTk):
 
         ctk.CTkLabel(
             card_desc,
-            text="SISTEMA DE PRODUCCIÓN DOCUMENTAL",
+            text="PRODUCCIÓN SIMULTÁNEA [ES 🇪🇸 & EN 🇺🇸]",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             text_color=C_TEAL,
         ).pack(anchor="w", padx=16, pady=(12, 4))
 
         desc_pipeline_texto = (
-            "Pipeline autónomo configurado para rotación continua entre 10 categorías documentales "
-            "(Ciberseguridad, Misterios, Ciencia Extrema, Robos y Eventos Históricos). "
-            "Genera guion con Groq, voz neuronal con Edge-TTS, 12 escenas visuales en SDXL, "
-            "montaje vertical 9:16 y subtítulos automáticos con Whisper."
+            "Motor bilingüe automatizado: genera un concepto rotando entre 10 categorías, "
+            "produce 12 imágenes SDXL de alta fidelidad compartidas y renderiza dos videos finales "
+            "completos: 'La Caja Negra' (Voz Álvaro / ES) y 'The Black Box Archives' "
+            "(Voz Christopher / EN), cada uno con subtítulos Whisper dinámicos."
         )
         ctk.CTkLabel(
             card_desc,
@@ -330,7 +339,7 @@ class CajaNegraStudio(ctk.CTk):
 
         self.btn_generar = ctk.CTkButton(
             card_desc,
-            text="⚡ Iniciar Producción Cíclica",
+            text="⚡ Iniciar Producción Cíclica (ES + EN)",
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
             height=42,
             fg_color="#0F766E",
@@ -392,12 +401,30 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.col2.grid(row=0, column=1, padx=8, pady=16, sticky="nsew")
 
+        top_col2 = ctk.CTkFrame(self.col2, fg_color="transparent")
+        top_col2.pack(fill="x", padx=22, pady=(20, 10))
+
         ctk.CTkLabel(
-            self.col2,
+            top_col2,
             text="Centro de Publicación",
             font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
             text_color=C_TEXT_MAIN,
-        ).pack(anchor="w", padx=22, pady=(20, 10))
+        ).pack(side="left")
+
+        # Selector de canal / idioma
+        self.tabs_lang = ctk.CTkSegmentedButton(
+            top_col2,
+            values=["🇪🇸 ES (La Caja Negra)", "🇺🇸 EN (Black Box)"],
+            command=self._cambiar_pestana_idioma,
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            selected_color="#0F766E",
+            selected_hover_color="#115E59",
+            unselected_color=C_CARD,
+            unselected_hover_color=C_CARD_HOVER,
+            text_color=C_TEXT_MAIN,
+        )
+        self.tabs_lang.set("🇪🇸 ES (La Caja Negra)")
+        self.tabs_lang.pack(side="right")
 
         # Tarjeta Título
         card_t = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
@@ -405,9 +432,10 @@ class CajaNegraStudio(ctk.CTk):
 
         t_head = ctk.CTkFrame(card_t, fg_color="transparent")
         t_head.pack(fill="x", padx=16, pady=(10, 4))
-        ctk.CTkLabel(
-            t_head, text="TÍTULO + HASHTAGS VIRALES", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
-        ).pack(side="left")
+        self.lbl_titulo_header = ctk.CTkLabel(
+            t_head, text="TÍTULO + HASHTAGS [ES]", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
+        )
+        self.lbl_titulo_header.pack(side="left")
         self.lbl_char_count = ctk.CTkLabel(
             t_head, text="0/100", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MUTED
         )
@@ -429,9 +457,10 @@ class CajaNegraStudio(ctk.CTk):
 
         d_head = ctk.CTkFrame(card_d, fg_color="transparent")
         d_head.pack(fill="x", padx=16, pady=(10, 4))
-        ctk.CTkLabel(
-            d_head, text="DESCRIPCIÓN Y METADATOS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
-        ).pack(side="left")
+        self.lbl_desc_header = ctk.CTkLabel(
+            d_head, text="DESCRIPCIÓN Y METADATOS [ES]", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_PURPLE
+        )
+        self.lbl_desc_header.pack(side="left")
 
         self.txt_desc = ctk.CTkTextbox(
             card_d, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word", corner_radius=8
@@ -443,7 +472,7 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MAIN, corner_radius=6, command=self._copiar_descripcion
         ).pack(anchor="e", padx=16, pady=(2, 10))
 
-        # Tarjeta de Horarios Informativa (Estilo tarjetas del dashboard)
+        # Tarjeta de Horarios Informativa
         note_card = ctk.CTkFrame(
             self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
         )
@@ -453,7 +482,8 @@ class CajaNegraStudio(ctk.CTk):
         note_head.pack(fill="x", padx=16, pady=(8, 4))
         ctk.CTkLabel(
             note_head, text="SCHEDULE & SLOTS RECOMENDADOS", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_AMBER
-        ).pack(anchor="w")
+        )
+        note_head.pack(anchor="w")
 
         slots_grid = ctk.CTkFrame(note_card, fg_color="transparent")
         slots_grid.pack(fill="x", padx=12, pady=(0, 10))
@@ -473,7 +503,7 @@ class CajaNegraStudio(ctk.CTk):
         # Botón Limpieza
         self.btn_limpieza = ctk.CTkButton(
             self.col2,
-            text="Liberar Espacio (Conservar Video Final)",
+            text="Liberar Espacio (Conservar Ambos Videos Finales)",
             height=38,
             fg_color=C_DANGER,
             hover_color=C_DANGER_HOVER,
@@ -556,7 +586,7 @@ class CajaNegraStudio(ctk.CTk):
 
         self.btn_toggle_video = ctk.CTkButton(
             ctrl_box,
-            text="Previsualizar Short",
+            text="Previsualizar Short Activo",
             height=42,
             fg_color=C_CARD,
             hover_color=C_CARD_HOVER,
@@ -608,24 +638,53 @@ class CajaNegraStudio(ctk.CTk):
 
     def _actualizar_progreso_video(self, pct: int, frame: int, total: int):
         def ui_update():
-            progreso_global = 0.75 + (pct / 100.0) * 0.13
+            progreso_global = 0.70 + (pct / 100.0) * 0.15
             self.progress_bar.set(progreso_global)
             self.lbl_status_text.configure(text=f"Render Video: {pct}% ({frame}/{total})")
         self.after(0, ui_update)
+
+    def _cambiar_pestana_idioma(self, valor: str):
+        self.canal_activo = "en" if "EN" in valor else "es"
+        idioma_tag = "[EN 🇺🇸 - The Black Box Archives]" if self.canal_activo == "en" else "[ES 🇪🇸 - La Caja Negra]"
+        self.lbl_titulo_header.configure(text=f"TÍTULO + HASHTAGS {idioma_tag}")
+        self.lbl_desc_header.configure(text=f"DESCRIPCIÓN Y METADATOS {idioma_tag}")
+
+        if self.ultimo_nombre_raiz:
+            self._cargar_metadata_canal(self.canal_activo)
+
+    def _cargar_metadata_canal(self, canal: str):
+        if not self.ultimo_nombre_raiz:
+            return
+        ruta_meta = BASE_DIR / "outputs" / "metadata" / f"{self.ultimo_nombre_raiz}_{canal}_para_publicar.txt"
+        self._actualizar_campos_metadata(ruta_meta)
+
+        video_path = self.ultimo_video_path_en if canal == "en" else self.ultimo_video_path_es
+        if video_path and video_path.exists():
+            nombre_label = "The Black Box Archives (EN)" if canal == "en" else "La Caja Negra (ES)"
+            self.btn_toggle_video.configure(
+                state="normal",
+                text=f"▶ Reproducir Short: {nombre_label}",
+                fg_color="#059669",
+                hover_color="#047857",
+                text_color="#FFFFFF",
+            )
+        else:
+            self.btn_toggle_video.configure(state="disabled", text="Video no disponible", fg_color=C_CARD, text_color=C_TEXT_MUTED)
 
     def _iniciar_produccion_hilo(self):
         if self.is_running:
             return
         self.is_running = True
 
-        self.ultimo_nombre_base = None
-        self.ultimo_video_path = None
-        self._limpiar_monitor_preview("Iniciando pipeline en ComfyUI...")
+        self.ultimo_nombre_raiz = None
+        self.ultimo_video_path_es = None
+        self.ultimo_video_path_en = None
+        self._limpiar_monitor_preview("Iniciando pipeline bilingüe...")
 
-        self.btn_generar.configure(state="disabled", text="Procesando Pipeline...", fg_color="#1F2937")
-        self.btn_toggle_video.configure(state="disabled", text="Generando Short...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.btn_generar.configure(state="disabled", text="Procesando Pipeline Bilingüe...", fg_color="#1F2937")
+        self.btn_toggle_video.configure(state="disabled", text="Generando Shorts...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
         self.led_indicator.configure(text="● GENERANDO", text_color=C_TEAL)
-        self.lbl_media_badge.configure(text="PREPARANDO GUION & VOZ", text_color=C_TEAL)
+        self.lbl_media_badge.configure(text="PREPARANDO GUIONES BILINGÜES", text_color=C_TEAL)
         self.progress_bar.set(0.05)
 
         hilo = threading.Thread(target=self._pipeline_worker, daemon=True)
@@ -637,70 +696,97 @@ class CajaNegraStudio(ctk.CTk):
             tema, indice_cat = pipeline_main.obtener_tema_automatico()
             self.log(f"Tema seleccionado: '{tema}'")
 
-            self.progress_bar.set(0.15)
+            self.progress_bar.set(0.12)
 
-            # 1. Guion
-            self.log("Generando guion con Groq (~180-200 palabras)...")
-            res_guion = generar_guion(tema, minimo=180, maximo=200)
-            ruta_json = guardar_guion(res_guion)
-            datos_g = res_guion["guion"]
-            titulo = datos_g["titulo"]
-            narracion = datos_g["narracion"]
-            narracion_v = narracion.removesuffix(" " + CIERRE_VIDEO).rstrip()
-            nombre_base = ruta_json.stem
-            self.ultimo_nombre_base = nombre_base
+            # 1. Guiones ES y EN
+            self.log("Generando guion [ES] con Groq (~180-200 palabras)...")
+            res_guion_es = generar_guion(tema, minimo=180, maximo=200)
+            self.log("Adaptando guion [EN] para 'The Black Box Archives'...")
+            res_guion_en = traducir_guion_a_ingles(res_guion_es)
 
-            self.progress_bar.set(0.30)
+            ruta_json_es = guardar_guion(res_guion_es, sufijo="_es")
+            ruta_json_en = guardar_guion(res_guion_en, sufijo="_en")
 
-            # 2. Audio
-            self.log("Sintetizando voz en off con Álvaro (Edge-TTS)...")
-            ruta_audio = convertir_texto_a_voz(narracion, nombre_base=nombre_base)
-            clip = pipeline_main.mp.AudioFileClip(str(ruta_audio))
-            duracion = clip.duration
-            clip.close()
+            nombre_raiz = ruta_json_es.stem.removesuffix("_es")
+            self.ultimo_nombre_raiz = nombre_raiz
 
-            self.progress_bar.set(0.45)
+            datos_g_es = res_guion_es["guion"]
+            titulo_es = datos_g_es["titulo"]
+            narracion_es = datos_g_es["narracion"]
+            narracion_v_es = narracion_es.removesuffix(" " + CIERRE_VIDEO_ES).rstrip()
 
-            # 3. ComfyUI con Live Feed
+            datos_g_en = res_guion_en["guion"]
+            titulo_en = datos_g_en["titulo"]
+            narracion_en = datos_g_en["narracion"]
+
+            self.progress_bar.set(0.25)
+
+            # 2. Generar 12 Imágenes con ComfyUI (Reutilizadas para ambos idiomas)
             self.lbl_media_badge.configure(text="RENDERIZANDO EN COMFYUI", text_color=C_PURPLE)
             stop_watcher = threading.Event()
             watcher_thread = threading.Thread(
-                target=self._vigilar_imagenes_en_directo, args=(nombre_base, stop_watcher), daemon=True
+                target=self._vigilar_imagenes_en_directo, args=(nombre_raiz, stop_watcher), daemon=True
             )
             watcher_thread.start()
 
-            self.log("Renderizando secuencia de 12 escenas en ComfyUI...")
-            generar_secuencia_imagenes(narracion_v, titulo, nombre_base=nombre_base, total_escenas=12)
+            self.log("Renderizando secuencia compartida de 12 escenas en ComfyUI SDXL...")
+            generar_secuencia_imagenes(narracion_v_es, titulo_es, nombre_base=nombre_raiz, total_escenas=12)
             stop_watcher.set()
 
-            self.progress_bar.set(0.75)
+            self.progress_bar.set(0.55)
 
-            # 4. Montaje video base
-            self.log("Montando video vertical con animación Ken Burns...")
+            # 3. Síntesis de Audio Bilingüe
+            self.log("Sintetizando voz en off [ES] con Álvaro...")
+            ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
+            clip_es = pipeline_main.mp.AudioFileClip(str(ruta_audio_es))
+            duracion_es = clip_es.duration
+            clip_es.close()
+
+            self.log("Sintetizando voz en off [EN] con Christopher...")
+            ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
+            clip_en = pipeline_main.mp.AudioFileClip(str(ruta_audio_en))
+            duracion_en = clip_en.duration
+            clip_en.close()
+
+            self.progress_bar.set(0.70)
+
+            # 4. Montaje de Videos Base
+            self.log("Montando video base [ES]...")
             logger_moviepy = MoviePyCallbackLogger(self._actualizar_progreso_video)
-            ruta_base = montar_video_final(nombre_base, duracion, custom_logger=logger_moviepy)
+            ruta_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, custom_logger=logger_moviepy, idioma="es")
 
-            self.progress_bar.set(0.88)
+            self.log("Montando video base [EN]...")
+            ruta_base_en = montar_video_final(f"{nombre_raiz}_en", duracion_en, custom_logger=logger_moviepy, idioma="en")
 
-            # 5. Subtítulos
-            self.log("Quemando subtítulos dinámicos con Whisper...")
-            ruta_final = agregar_subtitulos_al_video(ruta_base, ruta_audio)
-            pipeline_main.eliminar_copias_base_subtituladas(ruta_final)
-            self.ultimo_video_path = ruta_final
+            self.progress_bar.set(0.85)
 
-            # 6. Metadatos
-            self.log("Generando archivo de metadatos...")
-            ruta_meta = generar_archivo_metadata(titulo, tema, nombre_base)
+            # 5. Quemado de Subtítulos con Whisper
+            self.log("Quemando subtítulos en español con Whisper...")
+            ruta_final_es = agregar_subtitulos_al_video(ruta_base_es, ruta_audio_es, idioma="es")
+
+            self.log("Quemando subtítulos en inglés con Whisper...")
+            ruta_final_en = agregar_subtitulos_al_video(ruta_base_en, ruta_audio_en, idioma="en")
+
+            pipeline_main.eliminar_copias_base_subtituladas(ruta_final_es)
+            pipeline_main.eliminar_copias_base_subtituladas(ruta_final_en)
+
+            self.ultimo_video_path_es = ruta_final_es
+            self.ultimo_video_path_en = ruta_final_en
+
+            # 6. Metadatos Bilingües y Registro
+            self.log("Generando archivos de metadatos independientes (ES & EN)...")
+            generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
+            generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
+
             if indice_cat != -1:
                 pipeline_main.registrar_tema_en_historial(tema, indice_cat)
 
             self.progress_bar.set(1.0)
             self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)
-            self.lbl_media_badge.configure(text="VIDEO PRODUCIDO CON ÉXITO", text_color=C_EMERALD)
-            self.log("✔ PROCESO FINALIZADO. Short listo para publicación.")
+            self.lbl_media_badge.configure(text="2 VIDEOS PRODUCIDOS CON ÉXITO", text_color=C_EMERALD)
+            self.log("✔ PROCESO BILINGÜE FINALIZADO. Ambos Shorts listos para publicación.")
 
-            self._actualizar_campos_metadata(ruta_meta)
-            self.after(200, self._activar_reproduccion_completada)
+            self.after(100, lambda: self._cargar_metadata_canal(self.canal_activo))
 
         except Exception as e:
             self.led_indicator.configure(text="● ERROR", text_color=C_DANGER)
@@ -708,16 +794,7 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"❌ Fallo crítico en el proceso: {e}")
         finally:
             self.is_running = False
-            self.btn_generar.configure(state="normal", text="⚡ Iniciar Producción Cíclica", fg_color="#0F766E")
-
-    def _activar_reproduccion_completada(self):
-        self.btn_toggle_video.configure(
-            state="normal",
-            text="▶ Reproducir Video Final (Con Audio)",
-            fg_color="#059669",
-            hover_color="#047857",
-            text_color="#FFFFFF"
-        )
+            self.btn_generar.configure(state="normal", text="⚡ Iniciar Producción Cíclica (ES + EN)", fg_color="#0F766E")
 
     # ========================================================
     # MONITOR Y ÁLBUM DE ESCENAS
@@ -798,29 +875,32 @@ class CajaNegraStudio(ctk.CTk):
         VisorFullResolucion(self, self.imagenes_generadas, self.indice_imagen_activa)
 
     def _abrir_video_reproductor(self):
-        if self.ultimo_video_path and self.ultimo_video_path.exists():
+        video_actual = self.ultimo_video_path_en if self.canal_activo == "en" else self.ultimo_video_path_es
+        if video_actual and video_actual.exists():
             try:
-                os.startfile(str(self.ultimo_video_path))
-                self.log(f"🎬 Abriendo reproductor: {self.ultimo_video_path.name}")
+                os.startfile(str(video_actual))
+                self.log(f"🎬 Abriendo reproductor: {video_actual.name}")
             except Exception as err:
                 self.log(f"⚠️ Error al abrir reproductor de Windows: {err}")
         else:
-            self.log("⚠️ No hay video activo para reproducir.")
+            self.log("⚠️ No hay video activo para reproducir en este canal.")
 
     # ========================================================
     # METADATOS Y ACCIONES
     # ========================================================
     def _actualizar_campos_metadata(self, ruta_txt: Path):
         try:
+            if not ruta_txt.exists():
+                return
             lineas = ruta_txt.read_text(encoding="utf-8").splitlines()
             tit = ""
             desc = []
             capturar = False
 
             for i, l in enumerate(lineas):
-                if "📋 COPIAR Y PEGAR RÁPIDO" in l and i + 1 < len(lineas):
+                if ("📋 COPIAR Y PEGAR RÁPIDO" in l or "QUICK COPY-PASTE" in l) and i + 1 < len(lineas):
                     tit = lineas[i + 1].strip()
-                if "📝 DESCRIPCIÓN COMPLETA:" in l:
+                if "📝 DESCRIPCIÓN COMPLETA:" in l or "FULL DESCRIPTION:" in l:
                     capturar = True
                     continue
                 if capturar:
@@ -846,25 +926,28 @@ class CajaNegraStudio(ctk.CTk):
         t = self.entry_titulo.get().strip()
         if t:
             pyperclip.copy(t)
-            self.log("📋 Título copiado al portapapeles.")
+            self.log(f"📋 Título [{self.canal_activo.upper()}] copiado al portapapeles.")
 
     def _copiar_descripcion(self):
         d = self.txt_desc.get("1.0", "end").strip()
         if d:
             pyperclip.copy(d)
-            self.log("📋 Descripción copiada al portapapeles.")
+            self.log(f"📋 Descripción [{self.canal_activo.upper()}] copiada al portapapeles.")
 
     def _limpiar_archivos_disco(self):
-        if not self.ultimo_nombre_base:
+        if not self.ultimo_nombre_raiz:
             self.log("⚠️ No hay elementos en buffer para limpiar.")
             return
 
-        nb = self.ultimo_nombre_base
+        nb = self.ultimo_nombre_raiz
 
         rutas_temporales = [
-            BASE_DIR / "outputs" / "audio" / f"{nb}.mp3",
-            BASE_DIR / "outputs" / "json" / f"{nb}.json",
-            BASE_DIR / "outputs" / "metadata" / f"{nb}_para_publicar.txt",
+            BASE_DIR / "outputs" / "audio" / f"{nb}_es.mp3",
+            BASE_DIR / "outputs" / "audio" / f"{nb}_en.mp3",
+            BASE_DIR / "outputs" / "json" / f"{nb}_es.json",
+            BASE_DIR / "outputs" / "json" / f"{nb}_en.json",
+            BASE_DIR / "outputs" / "metadata" / f"{nb}_es_para_publicar.txt",
+            BASE_DIR / "outputs" / "metadata" / f"{nb}_en_para_publicar.txt",
             BASE_DIR / "outputs" / "prompts" / f"{nb}_prompts.json",
         ]
 
@@ -880,15 +963,12 @@ class CajaNegraStudio(ctk.CTk):
                 img.unlink(missing_ok=True)
                 eliminados += 1
 
-        ruta_vid = BASE_DIR / "outputs" / "videos" / f"{nb}_subtitulado.mp4"
-        estado_vid = "conservado intacto" if ruta_vid.exists() else "no encontrado"
-
-        self.log(f"🧹 Purgados {eliminados} archivos temporales. Video final {estado_vid} en outputs/videos.")
+        self.log(f"🧹 Purgados {eliminados} archivos temporales. Ambos videos finales conservados en outputs/videos.")
         self.entry_titulo.delete(0, "end")
         self.txt_desc.delete("1.0", "end")
         self.lbl_char_count.configure(text="0/100", text_color=C_TEXT_MUTED)
-        self._limpiar_monitor_preview(f"Temporales purgados.\nVideo final guardado en:\noutputs/videos/{nb}_subtitulado.mp4")
-        self.ultimo_nombre_base = None
+        self._limpiar_monitor_preview(f"Temporales purgados.\nVideos conservados:\noutputs/videos/{nb}_es_subtitulado.mp4\noutputs/videos/{nb}_en_subtitulado.mp4")
+        self.ultimo_nombre_raiz = None
 
 
 if __name__ == "__main__":

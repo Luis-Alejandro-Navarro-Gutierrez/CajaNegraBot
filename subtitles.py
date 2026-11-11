@@ -1,4 +1,4 @@
-"""Módulo para transcribir voz y quemar subtítulos dinámicos con Whisper y FFmpeg de forma silenciosa."""
+"""Módulo para transcribir voz y quemar subtítulos dinámicos con Whisper y FFmpeg de forma silenciosa (ES / EN)."""
 
 import os
 import re
@@ -60,9 +60,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if not grupo:
             continue
 
-        t_inicio_grupo = grupo[0]["start"]
-        t_fin_grupo = grupo[-1]["end"]
-
         # Mostrar cada palabra destacada secuencialmente
         for idx_actual, p_act in enumerate(grupo):
             t_ini_palabra = p_act["start"]
@@ -86,14 +83,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return ruta_salida_ass
 
 
-def agregar_subtitulos_al_video(ruta_video: Path, ruta_audio: Path) -> Path:
+def agregar_subtitulos_al_video(ruta_video: Path, ruta_audio: Path, idioma: str = None) -> Path:
     """Extrae palabras con Whisper y las quema en el video con FFmpeg de forma silenciosa."""
     ruta_video = Path(ruta_video).resolve()
     ruta_audio = Path(ruta_audio).resolve()
 
-    print("Transcribiendo audio con Whisper (modelo base)...")
+    # Detección automática de idioma si no se pasa explícito
+    if not idioma:
+        nombre_str = (ruta_video.stem + "_" + ruta_audio.stem).lower()
+        idioma = "en" if ("_en" in nombre_str or "english" in nombre_str) else "es"
+    else:
+        idioma = idioma.lower().strip()
+
+    print(f"Transcribiendo audio [{idioma.upper()}] con Whisper (modelo base)...")
     modelo = whisper.load_model("base")
-    resultado = modelo.transcribe(str(ruta_audio), language="es", word_timestamps=True)
+    resultado = modelo.transcribe(str(ruta_audio), language=idioma, word_timestamps=True)
 
     palabras = []
     for segmento in resultado.get("segments", []):
@@ -105,7 +109,7 @@ def agregar_subtitulos_al_video(ruta_video: Path, ruta_audio: Path) -> Path:
             })
 
     if not palabras:
-        raise ValueError("Whisper no detectó palabras en el audio.")
+        raise ValueError(f"Whisper no detectó palabras en el audio [{idioma.upper()}].")
 
     dir_salida = BASE_DIR / "outputs" / "videos"
     dir_salida.mkdir(parents=True, exist_ok=True)
@@ -115,7 +119,7 @@ def agregar_subtitulos_al_video(ruta_video: Path, ruta_audio: Path) -> Path:
 
     _generar_archivo_ass(palabras, ruta_salida_ass)
 
-    print("Quemando subtítulos alineados con FFmpeg...")
+    print(f"Quemando subtítulos [{idioma.upper()}] alineados con FFmpeg...")
 
     # Rutas escapadas para el filtro ass en Windows
     ruta_ass_escapada = str(ruta_salida_ass).replace("\\", "/").replace(":", "\\:")
@@ -158,4 +162,5 @@ def agregar_subtitulos_al_video(ruta_video: Path, ruta_audio: Path) -> Path:
 
     # Limpiar archivo temporal .ass
     ruta_salida_ass.unlink(missing_ok=True)
+    print(f"✔ Video subtitulado [{idioma.upper()}] generado en: {ruta_video_subtitulado}")
     return ruta_video_subtitulado

@@ -1,4 +1,4 @@
-"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con normalización fonética."""
+"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con soporte bilingüe (ES / EN)."""
 
 import asyncio
 import re
@@ -13,11 +13,12 @@ if getattr(sys, "frozen", False):
 else:
     BASE_DIR = Path(__file__).resolve().parent
 
-# Voz oficial de Álvaro
-VOICE = "es-ES-AlvaroNeural"
+# Voces oficiales para cada canal
+VOICE_ES = "es-ES-AlvaroNeural"         # La Caja Negra (Español)
+VOICE_EN = "en-US-ChristopherNeural"    # The Black Box Archives (Inglés - Documental Profundo)
 
 
-def _convertir_anio_a_palabras(match: re.Match) -> str:
+def _convertir_anio_a_palabras_es(match: re.Match) -> str:
     """Convierte números de 4 dígitos típicos de años (1000-2099) a texto continuo en español."""
     numero_str = match.group(0)
     num = int(numero_str)
@@ -80,47 +81,53 @@ def _convertir_anio_a_palabras(match: re.Match) -> str:
     return numero_str
 
 
-def normalizar_texto_para_tts(texto: str) -> str:
+def normalizar_texto_para_tts(texto: str, idioma: str = "es") -> str:
     """Prepara el texto para evitar pausas artificiales al leer años, siglas o signos."""
-    # Elimina puntos en años formateados como 1.945 o 2.024
+    # Elimina puntos en años o números formateados
     texto = re.sub(r"\b([12])\.(\d{3})\b", r"\1\2", texto)
 
-    # Convierte años comunes (de 1000 a 2099) a texto en español fluido
-    texto = re.sub(r"\b(1\d{3}|20\d{2})\b", _convertir_anio_a_palabras, texto)
+    if idioma == "es":
+        # Convierte años comunes (de 1000 a 2099) a texto en español fluido
+        texto = re.sub(r"\b(1\d{3}|20\d{2})\b", _convertir_anio_a_palabras_es, texto)
 
-    # Limpia comillas y guiones dobles que puedan forzar silencios innecesarios
-    texto = texto.replace('"', '').replace('“', '').replace('”', '')
+    # Limpia comillas y guiones que fuercen pausas innecesarias en ambos idiomas
+    texto = texto.replace('"', '').replace('“', '').replace('”', '').replace("'", "")
     texto = re.sub(r"\s+", " ", texto).strip()
 
     return texto
 
 
-async def _generar_audio_async(texto: str, ruta_salida: Path) -> None:
+async def _generar_audio_async(texto: str, ruta_salida: Path, voz: str, idioma: str) -> None:
     """Función asíncrona interna para procesar la locución con edge-tts."""
-    texto_procesado = normalizar_texto_para_tts(texto)
-    # rate='+5%' aporta un ritmo más ágil y moderno sin sonar acelerado
-    communicate = edge_tts.Communicate(texto_procesado, VOICE, rate="+5%")
+    texto_procesado = normalizar_texto_para_tts(texto, idioma=idioma)
+    # rate='+5%' aporta dinamismo sin distorsionar el tono
+    communicate = edge_tts.Communicate(texto_procesado, voz, rate="+5%")
     await communicate.save(str(ruta_salida))
 
 
-def convertir_texto_a_voz(texto_guion: str, nombre_base: str = "narracion") -> Path:
-    """Convierte el texto del guion en un archivo de audio MP3 guardado en outputs/audio/."""
+def convertir_texto_a_voz(texto_guion: str, nombre_base: str = "narracion", idioma: str = "es") -> Path:
+    """
+    Convierte el texto del guion en un archivo de audio MP3 guardado en outputs/audio/.
+    :param idioma: 'es' para español (Álvaro) o 'en' para inglés (Christopher).
+    """
     output_dir = BASE_DIR / "outputs" / "audio"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    idioma = idioma.lower().strip()
+    voz = VOICE_EN if idioma == "en" else VOICE_ES
 
     nombre_archivo = f"{Path(nombre_base).stem}.mp3"
     ruta_salida = output_dir / nombre_archivo
 
-    print(f"Sintetizando voz en off con '{VOICE}' (años normalizados a texto)...")
-    asyncio.run(_generar_audio_async(texto_guion, ruta_salida))
+    print(f"Sintetizando voz en off [{idioma.upper()}] con '{voz}'...")
+    asyncio.run(_generar_audio_async(texto_guion, ruta_salida, voz, idioma))
 
-    print(f"✔ ¡Audio generado con éxito! Guardado en: {ruta_salida}")
+    print(f"✔ ¡Audio [{idioma.upper()}] generado con éxito! Guardado en: {ruta_salida}")
     return ruta_salida
 
 
 if __name__ == "__main__":
-    texto_prueba = (
-        "En 1945 terminó la guerra, pero en 1957 un nuevo misterio comenzó en los Urales. "
-        "Todo cambió en el año 2024."
-    )
-    convertir_texto_a_voz(texto_prueba, "prueba_voz_anios")
+    # Prueba en Español
+    convertir_texto_a_voz("En 1957 ocurrió un misterio en los Urales.", "prueba_es", idioma="es")
+    # Prueba en Inglés
+    convertir_texto_a_voz("In 1957, a dark mystery began deep in the Ural Mountains.", "prueba_en", idioma="en")

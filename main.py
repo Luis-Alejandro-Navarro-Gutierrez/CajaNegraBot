@@ -1,4 +1,4 @@
-"""Pipeline de CajaNegraBot para producir videos documentales breves con Groq."""
+"""Pipeline de CajaNegraBot para producir videos documentales breves bilingües (ES / EN)."""
 
 import json
 import os
@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 from groq import Groq
 import moviepy.editor as mp
 
-# Módulos del pipeline
-from generator import CIERRE_VIDEO, generar_guion, guardar_guion
+# Módulos del pipeline actualizados
+from generator import CIERRE_VIDEO_ES, CIERRE_VIDEO_EN, generar_guion, traducir_guion_a_ingles, guardar_guion
 from tts import convertir_texto_a_voz
 from images import generar_secuencia_imagenes
 from video import montar_video_final
@@ -231,73 +231,98 @@ def eliminar_copias_base_subtituladas(ruta_video_final: Path) -> None:
 
         copia_subtitulada = copia_base.with_name(f"{copia_base.stem}_subtitulado{copia_base.suffix}")
         if copia_subtitulada.exists():
-            copia_base.unlink()
+            copia_base.unlink(missing_ok=True)
             print(f"✔ Copia sin subtítulos eliminada: {copia_base.name}")
 
 
 def main() -> int:
-    print("==========================================")
-    print("   🤖 CAJANEGRABOT - FÁBRICA DE SHORTS    ")
-    print("==========================================")
+    print("====================================================")
+    print("   🤖 CAJANEGRABOT - FÁBRICA BILINGÜE DE SHORTS    ")
+    print("   [ES] La Caja Negra  |  [EN] The Black Box Archives")
+    print("====================================================")
 
     # 1. Obtener tema con rotación fija de categoría
-    print("\n[1/7] Consultando un nuevo tema a Groq...")
+    print("\n[1/8] Consultando un nuevo tema a Groq...")
     tema, indice_cat = obtener_tema_automatico()
     print(f'🎯 Tema seleccionado: "{tema}"')
 
-    # 2. Generar Guion (~80 segundos: 180 - 200 palabras)
-    print("\n[2/7] Generando guion oficial con Groq...")
-    resultado_guion = generar_guion(tema, minimo=180, maximo=200)
-    ruta_json = guardar_guion(resultado_guion)
-    guion_data = resultado_guion["guion"]
-    titulo_oficial = guion_data["titulo"]
-    narracion_completa = guion_data["narracion"]
-    narracion_visual = narracion_completa.removesuffix(" " + CIERRE_VIDEO).rstrip()
-    print(f"✔ Guion listo: {titulo_oficial}")
+    # 2. Generar Guiones (Español e Inglés)
+    print("\n[2/8] Generando y adaptando guiones con Groq...")
+    resultado_guion_es = generar_guion(tema, minimo=180, maximo=200)
+    resultado_guion_en = traducir_guion_a_ingles(resultado_guion_es)
 
-    # 3. Sintetizar Audio (TTS)
-    print("\n[3/7] Sintetizando voz en off con Álvaro...")
-    nombre_base = ruta_json.stem
-    ruta_audio = convertir_texto_a_voz(narracion_completa, nombre_base=nombre_base)
+    # Extraer datos ES
+    guion_data_es = resultado_guion_es["guion"]
+    titulo_es = guion_data_es["titulo"]
+    narracion_es = guion_data_es["narracion"]
+    narracion_visual = narracion_es.removesuffix(" " + CIERRE_VIDEO_ES).rstrip()
 
-    audio_clip = mp.AudioFileClip(str(ruta_audio))
-    duracion_voz = audio_clip.duration
-    audio_clip.close()
-    print(f"✔ Voz lista (Duración: {duracion_voz:.2f}s)")
+    # Extraer datos EN
+    guion_data_en = resultado_guion_en["guion"]
+    titulo_en = guion_data_en["titulo"]
+    narracion_en = guion_data_en["narracion"]
 
-    # 4. Generar Secuencia de 12 Imágenes con ComfyUI Local
-    print("\n[4/7] Diseñando prompts con Groq y renderizando con ComfyUI...")
-    generar_secuencia_imagenes(narracion_visual, titulo_oficial, nombre_base=nombre_base, total_escenas=12)
-    print("✔ Secuencia de imágenes completada.")
+    # Guardar ambos archivos JSON
+    ruta_json_es = guardar_guion(resultado_guion_es, sufijo="_es")
+    ruta_json_en = guardar_guion(resultado_guion_en, sufijo="_en")
+    nombre_raiz = ruta_json_es.stem.removesuffix("_es")
+    print(f"✔ Guion [ES]: {titulo_es}")
+    print(f"✔ Script [EN]: {titulo_en}")
 
-    # 5. Montar Video Base con Animación Ken Burns
-    print("\n[5/7] Montando video base sincronizado...")
-    ruta_video_base = montar_video_final(nombre_base, duracion_voz)
-    print("✔ Video base generado.")
+    # 3. Generar Secuencia de 12 Imágenes con ComfyUI (Compartidas)
+    print("\n[3/8] Diseñando prompts visuales y renderizando 12 escenas compartidas en SDXL...")
+    generar_secuencia_imagenes(narracion_visual, titulo_es, nombre_base=nombre_raiz, total_escenas=12)
+    print("✔ Secuencia visual completada.")
 
-    # 6. Quemar Subtítulos Automáticos con Whisper
-    print("\n[6/7] Generando y quemando subtítulos dinámicos...")
-    ruta_video_final = agregar_subtitulos_al_video(ruta_video_base, ruta_audio)
-    if not ruta_video_final.exists():
-        raise FileNotFoundError(f"No se generó el video final esperado: {ruta_video_final}")
-    eliminar_copias_base_subtituladas(ruta_video_final)
-    print("✔ Subtítulos quemados.")
+    # 4. Sintetizar Audios (TTS Álvaro [ES] y Christopher [EN])
+    print("\n[4/8] Sintetizando voces en off con Edge-TTS...")
+    ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
+    ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
 
-    # 7. Metadatos y Registro
-    print("\n[7/7] Generando archivo de metadatos y guardando historial...")
-    ruta_txt = generar_archivo_metadata(titulo_oficial, tema, nombre_base)
+    # Medir duraciones
+    clip_es = mp.AudioFileClip(str(ruta_audio_es))
+    duracion_es = clip_es.duration
+    clip_es.close()
+
+    clip_en = mp.AudioFileClip(str(ruta_audio_en))
+    duracion_en = clip_en.duration
+    clip_en.close()
+
+    print(f"✔ Audio [ES] listo: {duracion_es:.2f}s")
+    print(f"✔ Audio [EN] listo: {duracion_en:.2f}s")
+
+    # 5. Montar Videos Base
+    print("\n[5/8] Montando videos base sincronizados con Ken Burns y música...")
+    ruta_video_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, idioma="es")
+    ruta_video_base_en = montar_video_final(f"{nombre_raiz}_en", duracion_en, idioma="en")
+
+    # 6. Quemar Subtítulos Dinámicos con Whisper
+    print("\n[6/8] Transcribiendo y quemando subtítulos con Whisper...")
+    ruta_final_es = agregar_subtitulos_al_video(ruta_video_base_es, ruta_audio_es, idioma="es")
+    ruta_final_en = agregar_subtitulos_al_video(ruta_video_base_en, ruta_audio_en, idioma="en")
+
+    eliminar_copias_base_subtituladas(ruta_final_es)
+    eliminar_copias_base_subtituladas(ruta_final_en)
+
+    # 7. Metadatos de Publicación
+    print("\n[7/8] Generando metadatos para YouTube Shorts...")
+    ruta_txt_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
+    ruta_txt_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
+
+    # 8. Registro en Historial
     registrar_tema_en_historial(tema, indice_cat)
 
-    print("\n==========================================")
-    print("🎉 ¡PROCESO COMPLETADO EXITOSAMENTE!")
-    print("==========================================")
-    print(f"📌 Tema:         {tema}")
-    print(f"⏱ Duración voz: {duracion_voz:.2f}s")
-    print(f"📄 Guion JSON:   {ruta_json}")
-    print(f"🎧 Audio:        {ruta_audio}")
-    print(f"🎬 Video Final:  {ruta_video_final}")
-    print(f"📝 Metadatos:    {ruta_txt}")
-    print("==========================================")
+    print("\n====================================================")
+    print("🎉 ¡PRODUCCIÓN BILINGÜE COMPLETADA EXITOSAMENTE!")
+    print("====================================================")
+    print(f"🎯 Tema trabajado:   {tema}")
+    print("\n📦 LA CAJA NEGRA (ESPAÑOL):")
+    print(f"   🎬 Video:      {ruta_final_es.name}")
+    print(f"   📝 Metadatos:  {ruta_txt_es.name}")
+    print("\n📦 THE BLACK BOX ARCHIVES (ENGLISH):")
+    print(f"   🎬 Video:      {ruta_final_en.name}")
+    print(f"   📝 Metadatos:  {ruta_txt_en.name}")
+    print("====================================================")
     return 0
 
 

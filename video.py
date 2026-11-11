@@ -1,4 +1,4 @@
-"""Módulo para montar videos verticales con escenas sincronizadas, movimiento Ken Burns y música de fondo."""
+"""Módulo para montar videos verticales con escenas sincronizadas, movimiento Ken Burns y música de fondo (ES / EN)."""
 
 import json
 import re
@@ -24,45 +24,77 @@ VIDEO_HEIGHT = 1920
 DURACION_TRANSICION = 0.25
 
 
-def _peso_palabras_escena(nombre_base: str, numero_escena: int) -> int:
+def _obtener_nombre_raiz(nombre_base: str) -> str:
+    """Extrae el nombre base raíz quitando los sufijos de idioma (_es, _en) para reutilizar imágenes y prompts."""
+    stem = Path(nombre_base).stem
+    if stem.endswith("_es") or stem.endswith("_en"):
+        return stem[:-3]
+    return stem
+
+
+def _peso_palabras_escena(nombre_base: str, numero_escena: int, idioma: str = "es") -> int:
     """Usa el fragmento narrado de cada prompt para estimar su tiempo en pantalla."""
-    ruta_prompts = BASE_DIR / "outputs" / "prompts" / f"{nombre_base}_prompts.json"
+    nombre_raiz = _obtener_nombre_raiz(nombre_base)
+    ruta_prompts = BASE_DIR / "outputs" / "prompts" / f"{nombre_raiz}_prompts.json"
+    
     try:
         datos = json.loads(ruta_prompts.read_text(encoding="utf-8"))
         escenas = datos.get("escenas", [])
         escena = next((item for item in escenas if item.get("escena") == numero_escena), None)
         fragmento = escena.get("fragmento_guion", "") if escena else ""
         palabras = re.findall(r"[\w’'-]+", fragmento, flags=re.UNICODE)
-        # La frase de cierre se narra después del guion visual y queda sobre la última escena
+        
+        # Ajuste de palabras de cierre en la última escena según el idioma
         if escena and numero_escena == max((x.get("escena", 0) for x in escenas), default=0):
-            palabras.extend(["Dale", "Like", "y", "suscribete", "para", "mas", "contenido"])
+            if idioma == "en":
+                palabras.extend(["Like", "and", "subscribe", "for", "more", "documented", "truths"])
+            else:
+                palabras.extend(["Dale", "Like", "y", "suscribete", "para", "mas", "contenido"])
         return max(1, len(palabras))
     except (OSError, ValueError, TypeError, AttributeError):
         return 1
 
 
-def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None) -> Path:
-    """Crea un video vertical con animación Ken Burns, narración sincronizada y música de fondo en loop."""
+def montar_video_final(
+    nombre_base: str, 
+    duracion_voz: float, 
+    custom_logger=None, 
+    ruta_audio_personalizada: Path = None,
+    idioma: str = "es"
+) -> Path:
+    """
+    Crea un video vertical con animación Ken Burns, narración sincronizada y música de fondo en loop.
+    Reutiliza las mismas imágenes generadas para ambas versiones lingüísticas.
+    """
     output_dir = BASE_DIR / "outputs" / "videos"
     output_dir.mkdir(parents=True, exist_ok=True)
-    ruta_audio = BASE_DIR / "outputs" / "audio" / f"{nombre_base}.mp3"
+    
+    # Determinar ruta de audio
+    if ruta_audio_personalizada and Path(ruta_audio_personalizada).exists():
+        ruta_audio = Path(ruta_audio_personalizada)
+    else:
+        ruta_audio = BASE_DIR / "outputs" / "audio" / f"{nombre_base}.mp3"
+        
     ruta_video_salida = output_dir / f"{nombre_base}.mp4"
 
     if not ruta_audio.exists():
         raise FileNotFoundError(f"No se encontró el audio en: {ruta_audio}")
 
+    # Reutilizar las 12 imágenes del nombre raíz
+    nombre_raiz = _obtener_nombre_raiz(nombre_base)
     img_dir = BASE_DIR / "outputs" / "images"
     lista_imagenes = sorted(
-        img_dir.glob(f"{nombre_base}_escena_*.jpg"),
+        img_dir.glob(f"{nombre_raiz}_escena_*.jpg"),
         key=lambda p: int(p.stem.split("_escena_")[-1]) if "_escena_" in p.stem else 0,
     )
+    
     if not lista_imagenes:
-        raise RuntimeError(f"No se encontraron imágenes en '{img_dir}' con el patrón '{nombre_base}_escena_*.jpg'.")
+        raise RuntimeError(f"No se encontraron imágenes en '{img_dir}' con el patrón '{nombre_raiz}_escena_*.jpg'.")
     if duracion_voz <= 0:
         raise ValueError("La duración de la voz debe ser mayor que cero.")
 
     numeros = [int(p.stem.split("_escena_")[-1]) for p in lista_imagenes]
-    pesos = [_peso_palabras_escena(nombre_base, numero) for numero in numeros]
+    pesos = [_peso_palabras_escena(nombre_base, numero, idioma=idioma) for numero in numeros]
     huecos_transicion = DURACION_TRANSICION * (len(lista_imagenes) - 1)
     duracion_clips_total = duracion_voz + huecos_transicion
     suma_pesos = sum(pesos)
@@ -70,7 +102,7 @@ def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None
 
     promedio = sum(duraciones) / len(duraciones)
     resumen = ", ".join(f"{d:.1f}s" for d in duraciones)
-    print(f"Montando {len(lista_imagenes)} escenas con tiempos según narración ({resumen}; promedio {promedio:.1f}s)...")
+    print(f"[{idioma.upper()}] Montando {len(lista_imagenes)} escenas con tiempos de narración ({resumen}; promedio {promedio:.1f}s)...")
 
     clips_animados = []
     for i, (img_path, duracion_clip) in enumerate(zip(lista_imagenes, duraciones)):
@@ -106,7 +138,6 @@ def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None
     clip_musica = None
 
     if ruta_musica.exists():
-        print(f"Mezclando música de fondo en loop desde '{ruta_musica}'...")
         clip_musica = (
             mp.AudioFileClip(str(ruta_musica))
             .fx(mp.afx.audio_loop, duration=duracion_voz)
@@ -114,12 +145,11 @@ def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None
         )
         audio_final = mp.CompositeAudioClip([audio_voz, clip_musica])
     else:
-        print(f"Aviso: No se encontró '{ruta_musica}'. Se usará únicamente la voz en off.")
         audio_final = audio_voz
 
     video_completo = video_secuencia.set_audio(audio_final).set_duration(duracion_voz)
 
-    print(f"Renderizando video base en: {ruta_video_salida}...")
+    print(f"Renderizando video base [{idioma.upper()}] en: {ruta_video_salida}...")
     video_completo.write_videofile(
         str(ruta_video_salida),
         fps=30,
@@ -128,11 +158,11 @@ def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None
         preset="fast",
         threads=4,
         ffmpeg_params=["-pix_fmt", "yuv420p"],
-        logger=custom_logger,  # Conecta el MoviePyCallbackLogger de la GUI o queda silenciado si es None
+        logger=custom_logger,
         verbose=False,
     )
 
-    # Liberación de recursos y descriptores
+    # Liberación de descriptores
     audio_voz.close()
     if clip_musica is not None:
         clip_musica.close()
@@ -142,5 +172,5 @@ def montar_video_final(nombre_base: str, duracion_voz: float, custom_logger=None
     for clip in clips_animados:
         clip.close()
 
-    print(f"Video base montado exitosamente en: {ruta_video_salida}")
+    print(f"✔ Video base [{idioma.upper()}] montado exitosamente en: {ruta_video_salida}")
     return ruta_video_salida
