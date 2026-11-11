@@ -31,54 +31,105 @@ load_dotenv(BASE_DIR / ".env")
 
 CATEGORIAS = [
     {
-        "id": "tech_hackeos",
-        "nombre": "TECNOLOGÍA, CIBERSEGURIDAD Y HACKEOS HISTÓRICOS",
-        "descripcion": "Ciberataques pioneros, virus míticos (Stuxnet, gusano Morris), phreaking telefónico con silbatos, bugs de software catastróficos o fallos de satélites y telecomunicaciones. Prohibido temas de guerras o tanques.",
+        "id": "ciberseguridad_hackeos",
+        "nombre": "HACKEOS LEGENDARIOS Y FALLOS TECNOLÓGICOS",
+        "descripcion": (
+            "Historias reales donde una sola persona o un código diminuto puso en jaque al mundo entero: "
+            "adolescentes que burlaron al Pentágono desde su habitación, el virus que apagó centrifugadoras nucleares (Stuxnet), "
+            "un silbato de cereal que permitía llamadas gratis infinitas o el bug de una línea que casi detiene satélites. "
+            "El espectador debe pensar: '¿Cómo algo tan simple causó semejante caos?'."
+        ),
     },
     {
-        "id": "robos_fugas",
-        "nombre": "ROBOS LEGENDARIOS, FUGAS Y FRAUDES INGENIOSOS",
-        "descripcion": "Atracos a bóvedas impenetrables (como Amberes), escapes históricos imposibles (D.B. Cooper, fuga de Alcatraz), o estafadores audaces que engañaron a imperios enteros mediante pura ingeniería social.",
+        "id": "robos_fugas_audaces",
+        "nombre": "ATRACOS IMPOSIBLES Y FUGAS DE PELÍCULA",
+        "descripcion": (
+            "Robos multimillonarios y escapes donde no se disparó una bala, sino pura astucia e ingenio: "
+            "ladrones que vaciaron la bóveda de diamantes más blindada del mundo usando cinta y laca para cabello, "
+            "hombres que se esfumaron de Alcatraz en balsas hechas de impermeables, o estafadores que vendieron "
+            "la Torre Eiffel dos veces. El gancho debe ser la audacia del plan y el detalle absurdo que casi los delata."
+        ),
     },
     {
-        "id": "ciencia_limite",
-        "nombre": "CIENCIA EXTREMA, ACCIDENTES Y PARADOJAS FÍSICAS",
-        "descripcion": "Incidentes con radiación, experimentos científicos al límite de la catástrofe, gotas del príncipe Rupert, el efecto Leidenfrost o descubrimientos de laboratorio con giros inesperados.",
+        "id": "ciencia_limite_accidentes",
+        "nombre": "CIENCIA EXTREMA, ACCIDENTES Y PARADOJAS",
+        "descripcion": (
+            "Experimentos reales que salieron terriblemente mal o fenómenos físicos que desafían el sentido común: "
+            "el núcleo de plutonio ('Demon Core') manipulado con un simple destornillador plano, "
+            "gotas de vidrio capaces de resistir un balazo pero que explotan si les tocas la cola, "
+            "o qué le ocurre al cuerpo si tocas una gota de antimateria. Conceptos científicos complejos explicados "
+            "para que cualquiera diga: '¿Cómo es físicamente posible que esto exista?'."
+        ),
     },
     {
-        "id": "naturaleza_anomalias",
-        "nombre": "NATURALEZA MORTAL Y FENÓMENOS GEOLÓGICOS EXTRAÑOS",
-        "descripcion": "Lagos que asfixian pueblos con gases invisibles (Lago Nyos), la cueva de los cristales gigantes de Naica, fuegos subterráneos eternos (Centralia), o agujeros y anomalías geológicas terrestres.",
+        "id": "naturaleza_anomalias_tierra",
+        "nombre": "ANOMALÍAS DE LA TIERRA Y NATURALEZA MORTAL",
+        "descripcion": (
+            "Lugares y fenómenos geológicos tan extraños que parecen de ciencia ficción pero existen hoy en la Tierra: "
+            "un lago que una noche liberó una nube invisible de gas y asfixió a pueblos enteros mientras dormían (Lago Nyos), "
+            "un pueblo fantasma que lleva más de 60 años ardiendo bajo tierra (Centralia), o una cueva donde el calor "
+            "y los cristales te cocinarían los pulmones en 15 minutos. El misterio de las trampas ocultas del planeta."
+        ),
     },
     {
-        "id": "biologia_parasitos",
-        "nombre": "RAREZAS BIOLÓGICAS Y PARÁSITOS FASCINANTES",
-        "descripcion": "Organismos zombificadores (Cordyceps), criaturas abisales con habilidades desconcertantes, defensas químicas extremas del reino animal o animales con adaptaciones que desafían la biología estándar.",
+        "id": "biologia_parasitos_zombis",
+        "nombre": "BIOLOGÍA PERTURBADORA Y CRIATURAS AL LÍMITE",
+        "descripcion": (
+            "Animales, hongos y parásitos reales con comportamientos tan aterradores que inspiraron películas: "
+            "hongos que secuestran el cerebro de insectos y los convierten en zombis, ranas que se congelan por completo "
+            "y resucitan semanas después, o peces abisales ciegos que devoran presas tres veces más grandes que ellos. "
+            "Hechos biológicos 100% verídicos que provocan escalofríos y asombro inmediato."
+        ),
     },
     {
-        "id": "psicologia_enigmas_medicos",
-        "nombre": "PSICOLOGÍA COLECTIVA Y ENIGMAS MÉDICOS REALES",
-        "descripcion": "Histerias colectivas documentadas (la epidemia de baile de 1518, la risa de Tanganica), personas inmunes a condiciones letales o casos clínicos y neurológicos que dejaron perpleja a la medicina.",
+        "id": "enigmas_medicos_psicologia",
+        "nombre": "ENIGMAS MÉDICOS Y LOCURA COLECTIVA",
+        "descripcion": (
+            "Casos clínicos desconcertantes y eventos psicológicos documentados que la ciencia apenas pudo explicar: "
+            "ciudades donde la gente empezó a bailar sin parar hasta colapsar, una escuela entera atrapada por un ataque "
+            "incontrolable de risa que duró meses, o personas que tras un golpe despertaron hablando idiomas fluidos o "
+            "tocando el piano sin haber tomado una sola clase. El cerebro humano fallando de formas inexplicables."
+        ),
     },
     {
-        "id": "misterios_expediciones",
-        "nombre": "MISTERIOS DOCUMENTADOS Y EXPEDICIONES ENIGMÁTICAS",
-        "descripcion": "Barcos hallados a la deriva sin tripulación (Mary Celeste), la lluvia biológica de Oakville, artefactos arqueológicos anacrónicos comprobados o expediciones de exploración con enigmas no resueltos.",
+        "id": "expediciones_misterios_mar",
+        "nombre": "MISTERIOS DOCUMENTADOS Y NAVÍOS FANTASMA",
+        "descripcion": (
+            "Casos con registros oficiales y bitácoras reales donde la tripulación se desvaneció en el aire: "
+            "barcos encontrados a toda vela con la comida servida en la mesa y ni un solo tripulante a bordo (Mary Celeste), "
+            "expediciones al Ártico donde hombres curtidos empezaron a perder el juicio por latas de comida contaminadas, "
+            "o el último mensaje transmitido antes de que una embarcación desapareciera sin dejar rastro en el radar."
+        ),
     },
     {
-        "id": "supervivencia_humana",
-        "nombre": "SUPERVIVENCIA EXTREMA CONTRA TODO PRONÓSTICO",
-        "descripcion": "Hazañas inverosímiles de resistencia humana: náufragos que pasaron meses en altamar, personas que cayeron de aviones sin paracaídas y sobrevivieron, o rescates en cuevas y simas profundas.",
+        "id": "supervivencia_inverosimil",
+        "nombre": "SUPERVIVENCIA HUMANA CONTRA TODO PRONÓSTICO",
+        "descripcion": (
+            "Personas comunes que desafiaron a la muerte cuando la estadística decía que era imposible vivir: "
+            "la mujer que cayó de un avión a 3.000 metros de altura atada a su asiento, cayó en la selva y caminó sola 10 días; "
+            "el hombre que sobrevivió dentro de una burbuja de aire en un barco hundido a 30 metros bajo el mar por tres días; "
+            "o náufragos que bebieron agua de lluvia y comieron tortugas para vencer al océano. Tensión pura de resistencia humana."
+        ),
     },
     {
-        "id": "absurdos_historicos",
-        "nombre": "DECISIONES ABSURDAS Y PARADOJAS HISTÓRICAS",
-        "descripcion": "Leyes extravagantes de imperios antiguos, disputas territoriales que se resolvieron de forma ridícula, impuestos insólitos o eventos históricos oficiales donde un malentendido minúsculo causó caos general.",
+        "id": "absurdos_historicos_caos",
+        "nombre": "ERRORES RIDÍCULOS QUE DESATARON EL CAOS",
+        "descripcion": (
+            "Momentos de la historia donde un malentendido infantil o una orden estúpida cambiaron el rumbo de países enteros: "
+            "ejércitos enteros que entraron en pánico y se dispararon a sí mismos en la oscuridad por barriles de licor (Karánsebes), "
+            "guerras oficiales declaradas por cerdos o cubos de madera, o la respuesta confusa de un funcionario en rueda de prensa "
+            "que derribó el Muro de Berlín en una noche. Hechos cómicos pero con consecuencias gigantescas."
+        ),
     },
     {
-        "id": "inventos_accidentales",
-        "nombre": "INVENTOS REVOLUCIONARIOS SURGIDOS POR ERROR",
-        "descripcion": "Grandes inventos nacidos de accidentes y fallos de laboratorio (la penicilina, el horno microondas, el teflón, la dinamita, el marcapasos), donde un tropiezo cambió la vida moderna por completo.",
+        "id": "inventos_accidentales_errores",
+        "nombre": "ACCIDENTES Y EQUIVOCACIONES QUE CAMBIARON EL MUNDO",
+        "descripcion": (
+            "Las cosas que usas todos los días y que nacieron porque alguien arruinó un experimento: "
+            "el científico que olvidó lavar un plato de bacterias y salvó millones de vidas con la penicilina; "
+            "un chocolate derretido en el bolsillo que dio origen al horno microondas; o el químico que buscaba veneno "
+            "y creó accidentalmente cerillas de fuego. El poder del error humano transformado en genialidad cotidiana."
+        ),
     },
 ]
 
