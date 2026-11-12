@@ -9,6 +9,22 @@ from dotenv import load_dotenv
 from groq import Groq
 import moviepy.editor as mp
 
+# ========================================================
+# DETECCIÓN DE RUTA PERSISTENTE A LA RAÍZ DEL PROYECTO (--onefile)
+# ========================================================
+if getattr(sys, "frozen", False):
+    # En modo --onefile, sys.executable está en .../dist/CajaNegra_Studio.exe
+    # .parent es 'dist' y .parent.parent es la raíz del proyecto
+    BASE_DIR = Path(sys.executable).resolve().parent.parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+os.chdir(str(BASE_DIR))
+os.environ["CAJANEGRA_ROOT"] = str(BASE_DIR)
+
+HISTORIAL_FILE = BASE_DIR / "historial_temas.json"
+load_dotenv(BASE_DIR / ".env")
+
 # Módulos del pipeline actualizados
 from generator import CIERRE_VIDEO_ES, CIERRE_VIDEO_EN, generar_guion, traducir_guion_a_ingles, guardar_guion
 from tts import convertir_texto_a_voz
@@ -16,19 +32,6 @@ from images import generar_secuencia_imagenes
 from video import montar_video_final
 from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
-
-# ========================================================
-# DETECCIÓN DE RUTA PERSISTENTE (COMPATIBLE CON .EXE)
-# ========================================================
-if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).resolve().parent
-    if BASE_DIR.name.lower() == "dist":
-        BASE_DIR = BASE_DIR.parent
-else:
-    BASE_DIR = Path(__file__).resolve().parent
-
-HISTORIAL_FILE = BASE_DIR / "historial_temas.json"
-load_dotenv(BASE_DIR / ".env")
 
 CATEGORIAS = [
     {

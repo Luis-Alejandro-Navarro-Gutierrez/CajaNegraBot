@@ -4,6 +4,7 @@ CAJANEGRABOT // YOUTUBE SHORTS CREATOR STUDIO PRO
 - Columna 3 (Monitor HD) ampliada y protagonista con visor de gran formato.
 - Columna central optimizada verticalmente sin espacios muertos.
 - Álbum horizontal con etiquetas E1, E2 claramente legibles bajo cada miniatura.
+- Anclaje persistente de rutas para compilación limpia en modo --onefile.
 - Soporte simultáneo bilingüe completo [ES] y [EN].
 - Slots de publicación interactivos con guardado de estado.
 - Notificaciones nativas de Windows Toast.
@@ -40,12 +41,17 @@ if sys.stderr is None:
 
 from dotenv import load_dotenv
 
+# ========================================================
+# DETECCIÓN DE RUTA PERSISTENTE A LA RAÍZ DEL PROYECTO (--onefile)
+# ========================================================
 if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).resolve().parent
-    if BASE_DIR.name.lower() == "dist":
-        BASE_DIR = BASE_DIR.parent
+    # En modo --onefile, sys.executable está en .../dist/CajaNegra_Studio.exe
+    BASE_DIR = Path(sys.executable).resolve().parent.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
+
+os.chdir(str(BASE_DIR))
+os.environ["CAJANEGRA_ROOT"] = str(BASE_DIR)
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -263,10 +269,6 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"⚠️ No se pudo disparar notificación de Windows: {err}")
 
     def _construir_layout(self):
-        # Distribución de columnas:
-        # Columna 0: Panel de Control (410 px fijo)
-        # Columna 1: Centro de Publicación (540 px contenido continuo)
-        # Columna 2: Monitor & Álbum HD (weight=1, absorbe el resto y se vuelve gigante)
         self.grid_columnconfigure(0, weight=0, minsize=410)
         self.grid_columnconfigure(1, weight=0, minsize=540)
         self.grid_columnconfigure(2, weight=1, minsize=650)
@@ -426,7 +428,6 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MAIN,
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
-        # Contenedor que llena toda la altura sin dejar espacios muertos
         self.pub_container = ctk.CTkFrame(self.col2, fg_color="transparent")
         self.pub_container.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
@@ -578,7 +579,7 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.lbl_media_badge.pack(anchor="w")
 
-        # Visor 9:16 de Gran Formato (Alto impacto visual)
+        # Visor 9:16 de Gran Formato
         self.preview_frame = ctk.CTkFrame(
             self.col3, fg_color=C_INPUT, corner_radius=14, border_color=C_BORDER, border_width=1, height=520
         )
@@ -615,7 +616,6 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MUTED,
         ).pack(anchor="w", padx=20, pady=(4, 2))
 
-        # Alto aumentado a 150 px para albergar la imagen y la etiqueta E1, E2 sin recortarla
         self.album_scroll = ctk.CTkScrollableFrame(
             self.col3, fg_color=C_INPUT, corner_radius=10, border_color=C_BORDER, border_width=1, height=150, orientation="horizontal"
         )
@@ -892,12 +892,10 @@ class CajaNegraStudio(ctk.CTk):
         self.btn_ver_full.configure(state="normal")
 
         try:
-            # Dimensiones de miniatura: 60x105 para dar espacio vertical holgado a la etiqueta de texto
             pil_thumb = Image.open(ruta_img)
             pil_thumb = pil_thumb.resize((60, 105), Image.Resampling.LANCZOS)
             ctk_thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=(60, 105))
 
-            # Altura 140 para que el texto E1, E2 no se recorte
             btn_thumb = ctk.CTkButton(
                 self.album_scroll,
                 image=ctk_thumb,
@@ -917,7 +915,7 @@ class CajaNegraStudio(ctk.CTk):
             btn_thumb.pack(side="left", padx=4, pady=2)
             self.botones_miniaturas.append(btn_thumb)
 
-            # Auto-scroll hacia la derecha para que siempre se vea la última escena agregada
+            # Auto-scroll hacia la derecha
             self.album_scroll._parent_canvas.xview_moveto(1.0)
         except Exception:
             pass
@@ -929,7 +927,6 @@ class CajaNegraStudio(ctk.CTk):
     def _mostrar_imagen_en_canvas(self, ruta_img: Path, subtexto: str = ""):
         try:
             pil_img = Image.open(ruta_img)
-            # Gran formato en el visor vertical (300 x 533)
             w, h = 300, 533
             pil_img = pil_img.resize((w, h), Image.Resampling.LANCZOS)
             ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(w, h))

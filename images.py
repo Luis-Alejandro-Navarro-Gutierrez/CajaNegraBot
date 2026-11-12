@@ -14,10 +14,12 @@ from groq import Groq
 import requests
 from PIL import Image
 
-if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).resolve().parent
-    if BASE_DIR.name.lower() == "dist":
-        BASE_DIR = BASE_DIR.parent
+if "CAJANEGRA_ROOT" in os.environ:
+    BASE_DIR = Path(os.environ["CAJANEGRA_ROOT"])
+elif getattr(sys, "frozen", False):
+    exe_path = Path(sys.executable).resolve()
+    # Si está dentro de dist (o subcarpeta de dist), sube hasta la raíz
+    BASE_DIR = exe_path.parent.parent if exe_path.parent.name.lower() == "dist" else exe_path.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
 
