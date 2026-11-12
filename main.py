@@ -1,5 +1,6 @@
 """Pipeline de CajaNegraBot para producir videos documentales breves bilingües (ES / EN)."""
 
+import difflib
 import json
 import os
 import sys
@@ -160,8 +161,35 @@ def _guardar_datos_historial(temas: list[str], indice_categoria: int) -> None:
     HISTORIAL_FILE.write_text(json.dumps(contenido, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def obtener_tema_automatico() -> tuple[str, int]:
-    """Consulta a Groq rotando ordenadamente entre las 10 categorías."""
+def es_tema_duplicado(nuevo_tema: str, historial_temas: list[str], umbral_similitud: float = 0.55) -> bool:
+    """Detecta colisiones semánticas y parecidos gramaticales con temas previos."""
+    nuevo_lower = nuevo_tema.lower()
+    stop_words = {
+        "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "por",
+        "en", "y", "a", "que", "con", "para", "sobre", "su", "sus", "como"
+    }
+    palabras_nuevo = {p.strip(":,.;!?\"'") for p in nuevo_lower.split()} - stop_words
+
+    for tema_previo in historial_temas:
+        previo_lower = tema_previo.lower()
+
+        # 1. Similitud global de cadena de caracteres (Levenshtein / SequenceMatcher)
+        ratio = difflib.SequenceMatcher(None, nuevo_lower, previo_lower).ratio()
+        if ratio >= umbral_similitud:
+            return True
+
+        # 2. Intersección de palabras clave principales
+        palabras_previas = {p.strip(":,.;!?\"'") for p in previo_lower.split()} - stop_words
+        if len(palabras_nuevo) >= 3 and len(palabras_previas) >= 3:
+            interseccion = palabras_nuevo.intersection(palabras_previas)
+            if len(interseccion) >= 3:
+                return True
+
+    return False
+
+
+def obtener_tema_automatico(max_intentos: int = 4) -> tuple[str, int]:
+    """Consulta a Groq rotando ordenadamente entre las 10 categorías y filtrando repeticiones."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GROQ_API_KEY no encontrada en el archivo .env.")
@@ -192,28 +220,40 @@ def obtener_tema_automatico() -> tuple[str, int]:
     1. 100% verídico, comprobado y documentado (sin rumores ni leyendas urbanas).
     2. Debe contener un giro inesperado, un dilema o una revelación concreta.
     3. Fácil de entender para un público amplio en menos de 90 segundos.
-    4. Prohibido repetir temas que ya estén en este historial:
-    {json.dumps(temas_previos, ensure_ascii=False)}
+    4. Prohibido terminantemente repetir o versionar temas que ya estén en este historial:
+    {json.dumps(temas_previos[-30:], ensure_ascii=False)}
 
     Devuelve ÚNICAMENTE el nombre claro del caso o la curiosidad. Sin comillas, sin introducciones ni explicaciones.
     """
 
-    completion = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {
-                "role": "system",
-                "content": "Eres un editor jefe de contenido de divulgación especializado en curiosidades reales de ciencia, tecnología, atracos ingeniosos y naturaleza. Devuelves únicamente el título solicitado.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.6,
-    )
+    tema_propuesto = ""
+    for intento in range(max_intentos):
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Eres un editor jefe de contenido de divulgación especializado en curiosidades reales de ciencia, tecnología, atracos ingeniosos y naturaleza. Devuelves únicamente el título solicitado sin rodeos ni formato markdown.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.75,
+        )
 
-    texto_respuesta = completion.choices[0].message.content.strip()
-    lineas = [l.strip().replace('"', "").replace("'", "").replace("*", "") for l in texto_respuesta.splitlines() if l.strip()]
-    tema_propuesto = lineas[0] if lineas else "Misterio Histórico No Documentado"
-    return tema_propuesto, nuevo_indice
+        texto_respuesta = completion.choices[0].message.content.strip()
+        lineas = [l.strip().replace('"', "").replace("'", "").replace("*", "") for l in texto_respuesta.splitlines() if l.strip()]
+        tema_candidato = lineas[0] if lineas else ""
+
+        if not tema_candidato:
+            continue
+
+        if not es_tema_duplicado(tema_candidato, temas_previos):
+            return tema_candidato, nuevo_indice
+
+        print(f"⚠️ Tema muy similar a uno previo detectado ('{tema_candidato}'). Reintentando con Groq ({intento + 1}/{max_intentos})...")
+        tema_propuesto = tema_candidato
+
+    return (tema_propuesto if tema_propuesto else "Misterio Histórico No Documentado"), nuevo_indice
 
 
 def registrar_tema_en_historial(tema: str, indice_categoria: int) -> None:
