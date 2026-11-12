@@ -210,7 +210,9 @@ def obtener_tema_automatico() -> tuple[str, int]:
         temperature=0.6,
     )
 
-    tema_propuesto = completion.choices[0].message.content.strip().replace('"', "").replace("'", "")
+    texto_respuesta = completion.choices[0].message.content.strip()
+    lineas = [l.strip().replace('"', "").replace("'", "").replace("*", "") for l in texto_respuesta.splitlines() if l.strip()]
+    tema_propuesto = lineas[0] if lineas else "Misterio Histórico No Documentado"
     return tema_propuesto, nuevo_indice
 
 

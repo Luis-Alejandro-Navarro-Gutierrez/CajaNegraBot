@@ -1,4 +1,4 @@
-"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con soporte bilingüe (ES / EN)."""
+"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con soporte bilingüe (ES / EN) y reintentos ante fallos de conexión."""
 
 import asyncio
 import re
@@ -97,12 +97,22 @@ def normalizar_texto_para_tts(texto: str, idioma: str = "es") -> str:
     return texto
 
 
-async def _generar_audio_async(texto: str, ruta_salida: Path, voz: str, idioma: str) -> None:
-    """Función asíncrona interna para procesar la locución con edge-tts."""
+async def _generar_audio_async(texto: str, ruta_salida: Path, voz: str, idioma: str, max_intentos: int = 3) -> None:
+    """Función asíncrona interna para procesar la locución con reintentos automáticos ante timeouts de Bing."""
     texto_procesado = normalizar_texto_para_tts(texto, idioma=idioma)
-    # rate='+5%' aporta dinamismo sin distorsionar el tono
-    communicate = edge_tts.Communicate(texto_procesado, voz, rate="+5%")
-    await communicate.save(str(ruta_salida))
+    
+    for intento in range(1, max_intentos + 1):
+        try:
+            # rate='+5%' aporta dinamismo sin distorsionar el tono
+            communicate = edge_tts.Communicate(texto_procesado, voz, rate="+5%")
+            await communicate.save(str(ruta_salida))
+            return
+        except Exception as e:
+            if intento == max_intentos:
+                raise RuntimeError(f"Fallo definitivo en Edge-TTS tras {max_intentos} intentos: {e}")
+            espera = intento * 2
+            print(f"⚠️ Reintento {intento}/{max_intentos} en Edge-TTS por timeout o red... esperando {espera}s")
+            await asyncio.sleep(espera)
 
 
 def convertir_texto_a_voz(texto_guion: str, nombre_base: str = "narracion", idioma: str = "es") -> Path:
