@@ -71,6 +71,7 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 200) -> dict:
                 {"role": "user", "content": prompt},
             ],
             temperature=0.45,
+            max_tokens=2048,
             response_format={"type": "json_object"},
         )
         guion_json = json.loads(completion.choices[0].message.content)
@@ -108,6 +109,7 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
+            max_tokens=2048,
             response_format={"type": "json_object"},
         )
         guion_en = json.loads(completion.choices[0].message.content)

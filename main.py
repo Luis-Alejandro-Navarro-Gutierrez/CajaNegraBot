@@ -191,7 +191,7 @@ def es_tema_duplicado(nuevo_tema: str, historial_temas: list[str], umbral_simili
     return False
 
 
-def obtener_tema_automatico(max_intentos: int = 4) -> tuple[str, int]:
+def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
     """Consulta a Groq rotando ordenadamente entre las 10 categorías y filtrando repeticiones."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
