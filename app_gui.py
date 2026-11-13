@@ -7,6 +7,7 @@ CAJANEGRABOT // YOUTUBE SHORTS CREATOR STUDIO PRO
 - Anclaje persistente de rutas para compilación limpia en modo --onefile.
 - Soporte simultáneo bilingüe completo [ES] y [EN].
 - Slots de publicación interactivos con guardado de estado.
+- Limpieza total post-publicación: purga JSONs bilingües, temporales y videos finales.
 - Notificaciones nativas de Windows Toast.
 """
 
@@ -544,10 +545,10 @@ class CajaNegraStudio(ctk.CTk):
             btn_status.pack(padx=6, pady=(0, 6), fill="x")
             self.btn_slots_estado.append(btn_status)
 
-        # Botón Limpieza
+        # Botón Limpieza Total (Post-Publicación)
         self.btn_limpieza = ctk.CTkButton(
             self.col2,
-            text="Liberar Espacio (Conservar Ambos Videos Finales)",
+            text="Liberar Espacio Total (Post-Publicación)",
             height=34,
             fg_color=C_DANGER,
             hover_color=C_DANGER_HOVER,
@@ -1033,30 +1034,53 @@ class CajaNegraStudio(ctk.CTk):
             return
 
         nb = self.ultimo_nombre_raiz
-
-        rutas_temporales = [
-            BASE_DIR / "outputs" / "audio" / f"{nb}_es.mp3",
-            BASE_DIR / "outputs" / "audio" / f"{nb}_en.mp3",
-            BASE_DIR / "outputs" / "json" / f"{nb}_es.json",
-            BASE_DIR / "outputs" / "json" / f"{nb}_en.json",
-            BASE_DIR / "outputs" / "metadata" / f"{nb}_es_para_publicar.txt",
-            BASE_DIR / "outputs" / "metadata" / f"{nb}_en_para_publicar.txt",
-            BASE_DIR / "outputs" / "prompts" / f"{nb}_prompts.json",
-        ]
-
         eliminados = 0
-        for f in rutas_temporales:
-            if f.exists():
+
+        # 1. Purgar JSON (tanto el español como el inglés traducido *_en.json)
+        json_dir = BASE_DIR / "outputs" / "json"
+        if json_dir.exists():
+            for f in json_dir.glob("*.json"):
+                if f.stem.startswith(nb) or f.stem.endswith("_en"):
+                    f.unlink(missing_ok=True)
+                    eliminados += 1
+
+        # 2. Purgar Audios (ES y EN)
+        audio_dir = BASE_DIR / "outputs" / "audio"
+        if audio_dir.exists():
+            for f in audio_dir.glob(f"{nb}_*.mp3"):
                 f.unlink(missing_ok=True)
                 eliminados += 1
 
+        # 3. Purgar Metadatos (ES y EN)
+        meta_dir = BASE_DIR / "outputs" / "metadata"
+        if meta_dir.exists():
+            for f in meta_dir.glob(f"{nb}_*.txt"):
+                f.unlink(missing_ok=True)
+                eliminados += 1
+
+        # 4. Purgar Prompts
+        prompts_file = BASE_DIR / "outputs" / "prompts" / f"{nb}_prompts.json"
+        if prompts_file.exists():
+            prompts_file.unlink(missing_ok=True)
+            eliminados += 1
+
+        # 5. Purgar Imágenes de escenas
         img_dir = BASE_DIR / "outputs" / "images"
         if img_dir.exists():
             for img in img_dir.glob(f"{nb}_escena_*.jpg"):
                 img.unlink(missing_ok=True)
                 eliminados += 1
 
-        self.log(f"🧹 Purgados {eliminados} archivos temporales. Ambos videos finales conservados en outputs/videos.")
+        # 6. Purgar Videos finales generados (ES y EN)
+        video_dir = BASE_DIR / "outputs" / "videos"
+        if video_dir.exists():
+            for vid in video_dir.glob(f"{nb}_*.mp4"):
+                vid.unlink(missing_ok=True)
+                eliminados += 1
+
+        self.log(f"🧹 Espacio liberado por completo: {eliminados} archivos eliminados (videos, audios, JSON e imágenes).")
+
+        # Limpieza visual de la interfaz
         self.entry_titulo_es.delete(0, "end")
         self.txt_desc_es.delete("1.0", "end")
         self.lbl_count_es.configure(text="0/100", text_color=C_TEXT_MUTED)
@@ -1065,8 +1089,13 @@ class CajaNegraStudio(ctk.CTk):
         self.txt_desc_en.delete("1.0", "end")
         self.lbl_count_en.configure(text="0/100", text_color=C_TEXT_MUTED)
 
-        self._limpiar_monitor_preview(f"Temporales purgados.\nVideos conservados:\noutputs/videos/{nb}_es_subtitulado.mp4\noutputs/videos/{nb}_en_subtitulado.mp4")
+        self.btn_play_es.configure(state="disabled", text="▶ Reproducir Short [ES]", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.btn_play_en.configure(state="disabled", text="▶ Reproducir Short [EN]", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+
+        self._limpiar_monitor_preview("Entorno limpiado por completo tras publicación.")
         self.ultimo_nombre_raiz = None
+        self.ultimo_video_path_es = None
+        self.ultimo_video_path_en = None
 
 
 if __name__ == "__main__":

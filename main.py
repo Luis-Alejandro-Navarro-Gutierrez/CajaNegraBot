@@ -1,6 +1,5 @@
 """Pipeline de CajaNegraBot para producir videos documentales breves bilingües (ES / EN)."""
 
-import difflib
 import json
 import os
 import sys
@@ -14,7 +13,6 @@ import moviepy.editor as mp
 # ========================================================
 if getattr(sys, "frozen", False):
     # En modo --onefile, sys.executable está en .../dist/CajaNegra_Studio.exe
-    # .parent es 'dist' y .parent.parent es la raíz del proyecto
     BASE_DIR = Path(sys.executable).resolve().parent.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
@@ -164,35 +162,53 @@ def _guardar_datos_historial(temas: list[str], indice_categoria: int) -> None:
     HISTORIAL_FILE.write_text(json.dumps(contenido, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def es_tema_duplicado(nuevo_tema: str, historial_temas: list[str], umbral_similitud: float = 0.55) -> bool:
-    """Detecta colisiones semánticas y parecidos gramaticales con temas previos."""
-    nuevo_lower = nuevo_tema.lower()
-    stop_words = {
-        "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "por",
-        "en", "y", "a", "que", "con", "para", "sobre", "su", "sus", "como"
-    }
-    palabras_nuevo = {p.strip(":,.;!?\"'") for p in nuevo_lower.split()} - stop_words
+def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas: list[str]) -> bool:
+    """Árbitro IA estricto: determina si la propuesta repite un hecho o historia del historial."""
+    if not historial_temas:
+        return False
 
-    for tema_previo in historial_temas:
-        previo_lower = tema_previo.lower()
-
-        # 1. Similitud global de cadena de caracteres (Levenshtein / SequenceMatcher)
-        ratio = difflib.SequenceMatcher(None, nuevo_lower, previo_lower).ratio()
-        if ratio >= umbral_similitud:
+    candidato_limpio = nuevo_candidato.strip().lower()
+    for t in historial_temas:
+        if candidato_limpio == t.strip().lower():
             return True
 
-        # 2. Intersección de palabras clave principales
-        palabras_previas = {p.strip(":,.;!?\"'") for p in previo_lower.split()} - stop_words
-        if len(palabras_nuevo) >= 3 and len(palabras_previas) >= 3:
-            interseccion = palabras_nuevo.intersection(palabras_previas)
-            if len(interseccion) >= 3:
-                return True
+    temas_referencia = "\n".join(f"- {t}" for t in historial_temas)
 
-    return False
+    prompt_juez = f"""
+    Evalúa si la siguiente propuesta de video trata sobre EL MISMO evento, hecho, experimento o historia real que cualquiera de los casos en el historial.
+
+    PROPUESTA A EVALUAR:
+    "{nuevo_candidato}"
+
+    HISTORIAL DE TEMAS YA TRATADOS:
+    {temas_referencia}
+
+    Criterios:
+    - Responde DUPLICADO si es la misma historia (aunque cambien las palabras, idioma, o se use un nombre corto como 'Demon Core' frente a 'El Núcleo Demonio').
+    - Responde NUEVO si es un evento, experimento o descubrimiento diferente, aunque pertenezca a la misma disciplina.
+
+    Responde ÚNICAMENTE con una sola palabra: 'DUPLICADO' o 'NUEVO'.
+    """
+
+    try:
+        verificacion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": "Eres un árbitro editorial estricto. Respondes únicamente DUPLICADO o NUEVO."},
+                {"role": "user", "content": prompt_juez},
+            ],
+            temperature=0.0,
+            max_tokens=10,
+        )
+        veredicto = verificacion.choices[0].message.content.strip().upper()
+        return "DUPLICADO" in veredicto
+    except Exception as e:
+        print(f"⚠️ Error consultando árbitro IA: {e}")
+        return False
 
 
 def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
-    """Consulta a Groq rotando ordenadamente entre las 10 categorías y filtrando repeticiones."""
+    """Consulta a Groq rotando ordenadamente y validando mediante IA contextual contra el historial."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GROQ_API_KEY no encontrada en el archivo .env.")
@@ -201,15 +217,16 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
     datos_historial = _cargar_datos_historial()
     temas_previos = datos_historial["temas"]
 
-    # Rueda cíclica: pasa a la siguiente categoría obligatoria (0 a 9)
     nuevo_indice = (datos_historial["ultimo_indice_categoria"] + 1) % len(CATEGORIAS)
     categoria = CATEGORIAS[nuevo_indice]
 
     print(f"🔄 Rotación temática [{nuevo_indice + 1}/{len(CATEGORIAS)}]: {categoria['nombre']}")
 
-    prompt = f"""
+    lista_historial_prompt = "\n".join(f"- {t}" for t in temas_previos) if temas_previos else "Ninguno"
+
+    prompt_generador = f"""
     Actúa como editor jefe de curiosidades reales y divulgación en videos cortos virales.
-    Tu objetivo es proponer UNA curiosidad o hecho histórico/científico real con alto factor de sorpresa ("¿Cómo es posible que esto haya pasado?").
+    Tu objetivo es proponer UNA curiosidad o hecho histórico/científico real con alto factor de sorpresa.
 
     CATEGORÍA OBLIGATORIA PARA ESTE VIDEO:
     {categoria['nombre']}
@@ -217,30 +234,30 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
 
     REGLAS DE EXCLUSIÓN TOTAL:
     - NO menciones soldados en trincheras, frentes de guerra, aviones bombarderos ni batallas de ejércitos.
-    - El tema debe pertenecer estrictamente a la categoría asignada.
+    - EL TEMA DEBE SER COMPLETAMENTE INÉDITO Y DIFERENTE A ESTE HISTORIAL COMPLETO:
+    {lista_historial_prompt}
 
     Criterios de calidad:
-    1. 100% verídico, comprobado y documentado (sin rumores ni leyendas urbanas).
+    1. 100% verídico, comprobado y documentado (sin rumores ni mitos).
     2. Debe contener un giro inesperado, un dilema o una revelación concreta.
     3. Fácil de entender para un público amplio en menos de 90 segundos.
-    4. Prohibido terminantemente repetir o versionar temas que ya estén en este historial:
-    {json.dumps(temas_previos[-30:], ensure_ascii=False)}
+    4. Elige historias poco conocidas, curiosidades oscuras o descubrimientos fascinantes que no sean los clichés típicos de internet.
 
     Devuelve ÚNICAMENTE el nombre claro del caso o la curiosidad. Sin comillas, sin introducciones ni explicaciones.
     """
 
-    tema_propuesto = ""
+    tema_candidato_final = ""
     for intento in range(max_intentos):
         completion = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
-                    "content": "Eres un editor jefe de contenido de divulgación especializado en curiosidades reales de ciencia, tecnología, atracos ingeniosos y naturaleza. Devuelves únicamente el título solicitado sin rodeos ni formato markdown.",
+                    "content": "Eres un editor de divulgación. Propones únicamente curiosidades documentadas inéditas, respetando los temas vetados.",
                 },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": prompt_generador},
             ],
-            temperature=0.75,
+            temperature=0.85,
         )
 
         texto_respuesta = completion.choices[0].message.content.strip()
@@ -250,13 +267,15 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
         if not tema_candidato:
             continue
 
-        if not es_tema_duplicado(tema_candidato, temas_previos):
+        es_duplicado = es_tema_duplicado_con_ia(client, tema_candidato, temas_previos)
+
+        if not es_duplicado:
             return tema_candidato, nuevo_indice
 
-        print(f"⚠️ Tema muy similar a uno previo detectado ('{tema_candidato}'). Reintentando con Groq ({intento + 1}/{max_intentos})...")
-        tema_propuesto = tema_candidato
+        print(f"⚠️ El árbitro IA detectó que '{tema_candidato}' ya fue tratado en el historial. Reintentando ({intento + 1}/{max_intentos})...")
+        tema_candidato_final = tema_candidato
 
-    return (tema_propuesto if tema_propuesto else "Misterio Histórico No Documentado"), nuevo_indice
+    return (tema_candidato_final if tema_candidato_final else "Curiosidad Inédita Documentada"), nuevo_indice
 
 
 def registrar_tema_en_historial(tema: str, indice_categoria: int) -> None:
@@ -286,8 +305,8 @@ def main() -> int:
     print("   [ES] La Caja Negra  |  [EN] The Black Box Archives")
     print("====================================================")
 
-    # 1. Obtener tema con rotación fija de categoría
-    print("\n[1/8] Consultando un nuevo tema a Groq...")
+    # 1. Obtener tema con rotación fija de categoría y validación semántica inteligente
+    print("\n[1/8] Consultando un nuevo tema inédito a Groq...")
     tema, indice_cat = obtener_tema_automatico()
     print(f'🎯 Tema seleccionado: "{tema}"')
 
@@ -324,7 +343,6 @@ def main() -> int:
     ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
     ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
 
-    # Medir duraciones
     clip_es = mp.AudioFileClip(str(ruta_audio_es))
     duracion_es = clip_es.duration
     clip_es.close()
