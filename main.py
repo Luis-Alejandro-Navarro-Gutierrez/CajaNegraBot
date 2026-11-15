@@ -36,101 +36,83 @@ CATEGORIAS = [
         "id": "ciberseguridad_hackeos",
         "nombre": "HACKEOS LEGENDARIOS Y FALLOS TECNOLÓGICOS",
         "descripcion": (
-            "Historias reales donde una sola persona o un código diminuto puso en jaque al mundo entero: "
-            "adolescentes que burlaron al Pentágono desde su habitación, el virus que apagó centrifugadoras nucleares (Stuxnet), "
-            "un silbato de cereal que permitía llamadas gratis infinitas o el bug de una línea que casi detiene satélites. "
-            "El espectador debe pensar: '¿Cómo algo tan simple causó semejante caos?'."
-        ),
-    },
-    {
-        "id": "robos_fugas_audaces",
-        "nombre": "ATRACOS IMPOSIBLES Y FUGAS DE PELÍCULA",
-        "descripcion": (
-            "Robos multimillonarios y escapes donde no se disparó una bala, sino pura astucia e ingenio: "
-            "ladrones que vaciaron la bóveda de diamantes más blindada del mundo usando cinta y laca para cabello, "
-            "hombres que se esfumaron de Alcatraz en balsas hechas de impermeables, o estafadores que vendieron "
-            "la Torre Eiffel dos veces. El gancho debe ser la audacia del plan y el detalle absurdo que casi los delata."
-        ),
-    },
-    {
-        "id": "ciencia_limite_accidentes",
-        "nombre": "CIENCIA EXTREMA, ACCIDENTES Y PARADOJAS",
-        "descripcion": (
-            "Experimentos reales que salieron terriblemente mal o fenómenos físicos que desafían el sentido común: "
-            "el núcleo de plutonio ('Demon Core') manipulado con un simple destornillador plano, "
-            "gotas de vidrio capaces de resistir un balazo pero que explotan si les tocas la cola, "
-            "o qué le ocurre al cuerpo si tocas una gota de antimateria. Conceptos científicos complejos explicados "
-            "para que cualquiera diga: '¿Cómo es físicamente posible que esto exista?'."
-        ),
-    },
-    {
-        "id": "naturaleza_anomalias_tierra",
-        "nombre": "ANOMALÍAS DE LA TIERRA Y NATURALEZA MORTAL",
-        "descripcion": (
-            "Lugares y fenómenos geológicos tan extraños que parecen de ciencia ficción pero existen hoy en la Tierra: "
-            "un lago que una noche liberó una nube invisible de gas y asfixió a pueblos enteros mientras dormían (Lago Nyos), "
-            "un pueblo fantasma que lleva más de 60 años ardiendo bajo tierra (Centralia), o una cueva donde el calor "
-            "y los cristales te cocinarían los pulmones en 15 minutos. El misterio de las trampas ocultas del planeta."
-        ),
-    },
-    {
-        "id": "biologia_parasitos_zombis",
-        "nombre": "BIOLOGÍA PERTURBADORA Y CRIATURAS AL LÍMITE",
-        "descripcion": (
-            "Animales, hongos y parásitos reales con comportamientos tan aterradores que inspiraron películas: "
-            "hongos que secuestran el cerebro de insectos y los convierten en zombis, ranas que se congelan por completo "
-            "y resucitan semanas después, o peces abisales ciegos que devoran presas tres veces más grandes que ellos. "
-            "Hechos biológicos 100% verídicos que provocan escalofríos y asombro inmediato."
-        ),
-    },
-    {
-        "id": "enigmas_medicos_psicologia",
-        "nombre": "ENIGMAS MÉDICOS Y LOCURA COLECTIVA",
-        "descripcion": (
-            "Casos clínicos desconcertantes y eventos psicológicos documentados que la ciencia apenas pudo explicar: "
-            "ciudades donde la gente empezó a bailar sin parar hasta colapsar, una escuela entera atrapada por un ataque "
-            "incontrolable de risa que duró meses, o personas que tras un golpe despertaron hablando idiomas fluidos o "
-            "tocando el piano sin haber tomado una sola clase. El cerebro humano fallando de formas inexplicables."
-        ),
-    },
-    {
-        "id": "expediciones_misterios_mar",
-        "nombre": "MISTERIOS DOCUMENTADOS Y NAVÍOS FANTASMA",
-        "descripcion": (
-            "Casos con registros oficiales y bitácoras reales donde la tripulación se desvaneció en el aire: "
-            "barcos encontrados a toda vela con la comida servida en la mesa y ni un solo tripulante a bordo (Mary Celeste), "
-            "expediciones al Ártico donde hombres curtidos empezaron a perder el juicio por latas de comida contaminadas, "
-            "o el último mensaje transmitido antes de que una embarcación desapareciera sin dejar rastro en el radar."
-        ),
-    },
-    {
-        "id": "supervivencia_inverosimil",
-        "nombre": "SUPERVIVENCIA HUMANA CONTRA TODO PRONÓSTICO",
-        "descripcion": (
-            "Personas comunes que desafiaron a la muerte cuando la estadística decía que era imposible vivir: "
-            "la mujer que cayó de un avión a 3.000 metros de altura atada a su asiento, cayó en la selva y caminó sola 10 días; "
-            "el hombre que sobrevivió dentro de una burbuja de aire en un barco hundido a 30 metros bajo el mar por tres días; "
-            "o náufragos que bebieron agua de lluvia y comieron tortugas para vencer al océano. Tensión pura de resistencia humana."
+            "Sucesos donde un fallo de código, un error técnico diminuto o un ciberataque puso en jaque infraestructuras, "
+            "bancos o corporaciones enteras. Abarca tanto los orígenes informáticos (bugs pioneros, phreaking) como "
+            "incidentes contemporáneos de alto impacto del siglo XXI (BlackEnergy, Stuxnet, apagones masivos por parches fallidos)."
         ),
     },
     {
         "id": "absurdos_historicos_caos",
         "nombre": "ERRORES RIDÍCULOS QUE DESATARON EL CAOS",
         "descripcion": (
-            "Momentos de la historia donde un malentendido infantil o una orden estúpida cambiaron el rumbo de países enteros: "
-            "ejércitos enteros que entraron en pánico y se dispararon a sí mismos en la oscuridad por barriles de licor (Karánsebes), "
-            "guerras oficiales declaradas por cerdos o cubos de madera, o la respuesta confusa de un funcionario en rueda de prensa "
-            "que derribó el Muro de Berlín en una noche. Hechos cómicos pero con consecuencias gigantescas."
+            "Momentos donde un malentendido infantil, una orden mal redactada o un descuido involuntario cambiaron la historia. "
+            "Desde la antigüedad o la edad media hasta meteduras de pata del siglo XX y XXI con consecuencias geopolíticas, económicas o sociales grotescas."
+        ),
+    },
+    {
+        "id": "ciencia_limite_accidentes",
+        "nombre": "CIENCIA EXTREMA, ACCIDENTES Y PARADOJAS",
+        "descripcion": (
+            "Experimentos al límite, incidentes en laboratorios documentados y fenómenos físicos desconcertantes. "
+            "Desde radiación y reacciones críticas (Demon Core, SL-1) hasta eventos recientes en aceleradores de partículas contemporáneos, "
+            "antimateria, o materiales que retan las leyes de la física cotidiana."
+        ),
+    },
+    {
+        "id": "supervivencia_inverosimil",
+        "nombre": "SUPERVIVENCIA HUMANA CONTRA TODO PRONÓSTICO",
+        "descripcion": (
+            "Personas comunes que escaparon de la muerte cuando la estadística marcaba cero posibilidades: caídas libres extremas, "
+            "encierros involuntarios en hábitats hostiles, aislamiento prolongado o naufragios documentados tanto históricos como de décadas recientes."
+        ),
+    },
+    {
+        "id": "robos_fugas_audaces",
+        "nombre": "ATRACOS IMPOSIBLES Y FUGAS DE PELÍCULA",
+        "descripcion": (
+            "Golpes multimillonarios, robos de guante blanco y fugas donde la clave fue el ingenio técnico, la paciencia y la estrategia. "
+            "Atracos clásicos de bóvedas blindadas, túneles de alta ingeniería contemporáneos o fugas carcelarias que burlaron sistemas de máxima seguridad."
+        ),
+    },
+    {
+        "id": "biologia_parasitos_zombis",
+        "nombre": "BIOLOGÍA PERTURBADORA Y CRIATURAS AL LÍMITE",
+        "descripcion": (
+            "Parásitos, hongos, insectos y animales con adaptaciones evolutivas tan extremas o aterradoras que inspiraron el cine de terror. "
+            "Manipulación de conducta de huéspedes, supervivencia en fosas abisales o defensas químicas 100% comprobadas por biólogos."
         ),
     },
     {
         "id": "inventos_accidentales_errores",
         "nombre": "ACCIDENTES Y EQUIVOCACIONES QUE CAMBIARON EL MUNDO",
         "descripcion": (
-            "Las cosas que usas todos los días y que nacieron porque alguien arruinó un experimento: "
-            "el científico que olvidó lavar un plato de bacterias y salvó millones de vidas con la penicilina; "
-            "un chocolate derretido en el bolsillo que dio origen al horno microondas; o el químico que buscaba veneno "
-            "y creó accidentalmente cerillas de fuego. El poder del error humano transformado en genialidad cotidiana."
+            "Herramientas, tecnologías, medicinas y productos de consumo universal que surgieron porque alguien arruinó un experimento "
+            "o buscaba algo totalmente opuesto. La serendipia humana transformada en impacto global."
+        ),
+    },
+    {
+        "id": "enigmas_medicos_psicologia",
+        "nombre": "ENIGMAS MÉDICOS Y LOCURA COLECTIVA",
+        "descripcion": (
+            "Casos clínicos desconcertantes documentados en la literatura médica, brotes de histeria o trastornos psicogénicos colectivos, "
+            "y síndromes neuropsicológicos inexplicables tanto de épocas pasadas como registrados en hospitales contemporáneos."
+        ),
+    },
+    {
+        "id": "naturaleza_anomalias_tierra",
+        "nombre": "ANOMALÍAS DE LA TIERRA Y NATURALEZA MORTAL",
+        "descripcion": (
+            "Lugares letales, fosas tóxicas, incendios subterráneos perpetuos y trampas geológicas activas en el planeta que parecen ficción "
+            "pero existen hoy. El peligro oculto en la geología terrestre."
+        ),
+    },
+    {
+        "id": "misterios_enigmas_documentados",
+        "nombre": "MISTERIOS Y ENIGMAS DOCUMENTADOS",
+        "descripcion": (
+            "Casos con expedientes policiales oficiales, bitácoras gubernamentales o registros científicos que desafían la lógica: "
+            "desapariciones terrestres o aéreas inexplicadas, transmisiones de radio fantasma captadas por antenas internacionales, "
+            "mensajes o manuscritos cifrados que nadie ha logrado romper, y expediciones oficiales donde el desenlace sigue sin respuesta documentada."
         ),
     },
 ]
@@ -226,22 +208,23 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
 
     prompt_generador = f"""
     Actúa como editor jefe de curiosidades reales y divulgación en videos cortos virales.
-    Tu objetivo es proponer UNA curiosidad o hecho histórico/científico real con alto factor de sorpresa.
+    Tu objetivo es proponer UNA curiosidad o hecho histórico/científico real con alto factor de sorpresa ("¿Cómo es posible que esto haya ocurrido?").
 
     CATEGORÍA OBLIGATORIA PARA ESTE VIDEO:
     {categoria['nombre']}
     Descripción del enfoque: {categoria['descripcion']}
 
-    REGLAS DE EXCLUSIÓN TOTAL:
-    - NO menciones soldados en trincheras, frentes de guerra, aviones bombarderos ni batallas de ejércitos.
+    REGLAS DE EQUILIBRIO TEMPORAL Y SELECCIÓN:
+    - Alterna libremente entre hitos de la historia clásica y sucesos contemporáneos/actuales (décadas de 1990, 2000, 2010 y siglo XXI). No te limites únicamente al siglo XIX ni a la Guerra Fría.
+    - NO menciones soldados en trincheras, frentes bélicos, aviones de combate bombarderos ni batallas de ejércitos.
     - EL TEMA DEBE SER COMPLETAMENTE INÉDITO Y DIFERENTE A ESTE HISTORIAL COMPLETO:
     {lista_historial_prompt}
 
     Criterios de calidad:
-    1. 100% verídico, comprobado y documentado (sin rumores ni mitos).
-    2. Debe contener un giro inesperado, un dilema o una revelación concreta.
+    1. 100% verídico, comprobado y documentado por fuentes oficiales o científicas.
+    2. Debe contener un giro inesperado, un dilema técnico o una revelación impactante.
     3. Fácil de entender para un público amplio en menos de 90 segundos.
-    4. Elige historias poco conocidas, curiosidades oscuras o descubrimientos fascinantes que no sean los clichés típicos de internet.
+    4. Elige historias poco trilladas, evitando clichés desgastados en internet.
 
     Devuelve ÚNICAMENTE el nombre claro del caso o la curiosidad. Sin comillas, sin introducciones ni explicaciones.
     """

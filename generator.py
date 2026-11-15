@@ -50,14 +50,16 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 200) -> dict:
 
     prompt = f"""
     Escribe un guion en español tipo "¿Sabías que...?" para Shorts sobre: "{tema}".
-    Enfoque: misterio documental, hechos reales, tensión y giros asombrosos sin tecnicismos densos.
+    Enfoque: misterio documental, hechos reales comprobados, tensión sostenida y revelaciones asombrosas sin tecnicismos densos.
     
-    Reglas:
-    1. Duración: {minimo}-{maximo} palabras totales.
-    2. Comienza directo con un gancho "¿Sabías que...?".
-    3. Retención: Gancho impactante, nudo con anomalía, giro revelador y resolución.
-    4. Cierre obligatorio como última frase: "{CIERRE_VIDEO_ES}".
-    5. Cero anotaciones técnicas; solo texto para locución.
+    Reglas estrictas:
+    1. Longitud de narración: exactamente {minimo}-{maximo} palabras totales.
+    2. Comienza directo con un gancho potente "¿Sabías que...?".
+    3. Ritmo narrativo fluido: plantea el misterio o anomalía y revela lo inesperado mediante los propios hechos, SIN anunciar las partes de la historia.
+    4. PROHIBIDO terminantemente usar frases o muletillas de meta-narrativa como "el giro llegó", "el giro se dio", "el giro inesperado", "la sorpresa fue", "el clímax" o "la moraleja". El cambio de rumbo debe ser 100% implícito, orgánico y conducido por la acción (ejemplos: "Sin embargo, cuando abrieron...", "Pero los análisis revelaron algo aterrador...", "Todo cambió en un segundo cuando...").
+    5. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
+    6. Cero anotaciones de cámara o efectos de sonido; solo texto limpio para locución.
+    7. Asegúrate de cerrar la estructura JSON completamente.
 
     Responde ÚNICAMENTE un JSON válido:
     {{"guion": {{"titulo": "Título intrigante", "narracion": "Texto completo"}}}}
@@ -67,11 +69,14 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 200) -> dict:
         completion = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "Eres guionista documental de videos virales de alta retención. Devuelve solo JSON."},
+                {
+                    "role": "system",
+                    "content": "Eres guionista documental de videos virales de alta retención. La narrativa es inmersiva y jamás anuncia los giros explícitamente. Devuelve solo un documento JSON válido y estrictamente cerrado.",
+                },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.45,
-            max_tokens=2048,
+            max_tokens=3000,
             response_format={"type": "json_object"},
         )
         guion_json = json.loads(completion.choices[0].message.content)
@@ -94,10 +99,13 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
     Source Script: {datos['narracion']}
     
     Rules:
-    1. Hook start with "Did you know that...?"
-    2. Maintain exact narrative progression and factual accuracy.
-    3. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
-    4. Return ONLY valid JSON:
+    1. Hook must start with "Did you know that...?"
+    2. Maintain exact narrative progression, factual accuracy, and word count (~180-200 words).
+    3. STRICTLY FORBIDDEN meta-narrative announcements like "the twist came", "the twist happened", "the unexpected plot twist", or "the climax was". Reveal the turn of events purely through actions and facts (e.g., "However, upon closer inspection...", "What investigators actually discovered shook everyone...", "Everything collapsed when...").
+    4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
+    5. Ensure the JSON structure is strictly complete and properly closed.
+
+    Return ONLY valid JSON:
     {{"guion": {{"titulo": "Captivating English Title", "narracion": "English narration text"}}}}
     """
 
@@ -105,11 +113,14 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
         completion = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "You are a professional documentary scriptwriter. Output strict JSON only."},
+                {
+                    "role": "system",
+                    "content": "You are an expert documentary scriptwriter. Deliver cinematic immersion without declaring plot transitions. Output strict, complete, and properly closed JSON only.",
+                },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=2048,
+            max_tokens=3000,
             response_format={"type": "json_object"},
         )
         guion_en = json.loads(completion.choices[0].message.content)
@@ -119,14 +130,17 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
         raise RuntimeError(f"Error traduciendo guion EN: {e}")
 
 
-def guardar_guion(guion_data: dict, sufijo: str = "") -> Path:
-    """Guarda el JSON del guion en outputs/json/ con sufijo de idioma opcional."""
+def guardar_guion(guion_data: dict, sufijo: str = "", nombre_base_fijo: str = "") -> Path:
+    """Guarda el JSON del guion en outputs/json/ vinculando el nombre base para sincronización y limpieza."""
     output_dir = BASE_DIR / "outputs" / "json"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    titulo = guion_data["guion"]["titulo"]
-    nombre_base = "".join(c if c.isalnum() else "_" for c in titulo).lower()
-    nombre_base = "_".join(filter(None, nombre_base.split("_")))[:40]
+    if nombre_base_fijo:
+        nombre_base = nombre_base_fijo
+    else:
+        titulo = guion_data["guion"]["titulo"]
+        nombre_base = "".join(c if c.isalnum() else "_" for c in titulo).lower()
+        nombre_base = "_".join(filter(None, nombre_base.split("_")))[:40]
 
     nombre_archivo = f"{nombre_base}{sufijo}.json" if sufijo else f"{nombre_base}.json"
     ruta_archivo = output_dir / nombre_archivo
