@@ -1,14 +1,9 @@
 """
-CAJANEGRABOT // YOUTUBE SHORTS CREATOR STUDIO PRO
-- Paleta Slate / Dark Graphite Mate con alto contraste (anti-fatiga).
-- Columna 3 (Monitor HD) ampliada y protagonista con visor de gran formato.
-- Columna central optimizada verticalmente sin espacios muertos.
-- Álbum horizontal con etiquetas E1, E2 claramente legibles bajo cada miniatura.
-- Anclaje persistente de rutas para compilación limpia en modo --onefile.
-- Soporte simultáneo bilingüe completo [ES] y [EN].
-- Slots de publicación interactivos con guardado de estado.
-- Limpieza total post-publicación: purga JSONs bilingües, temporales y videos finales.
-- Notificaciones nativas de Windows Toast.
+CAJANEGRABOT // YOUTUBE CREATOR STUDIO PRO (SHORTS & DOCUMENTALES LARGOS)
+- Columna 1 (Control y Telemetría) ampliada para máxima legibilidad de logs técnicos.
+- Columna 3 (Monitor HD) estilizada y optimizada para previsualización continua.
+- Vigilante activo en vivo para documentales largos (muestra las 36 imágenes conforme salen de ComfyUI).
+- Soporte para ejecución en hilos y aislamiento de bucles asyncio.
 """
 
 import os
@@ -46,7 +41,6 @@ from dotenv import load_dotenv
 # DETECCIÓN DE RUTA PERSISTENTE A LA RAÍZ DEL PROYECTO (--onefile)
 # ========================================================
 if getattr(sys, "frozen", False):
-    # En modo --onefile, sys.executable está en .../dist/CajaNegra_Studio.exe
     BASE_DIR = Path(sys.executable).resolve().parent.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
@@ -59,7 +53,7 @@ load_dotenv(BASE_DIR / ".env")
 import customtkinter as ctk
 import pyperclip
 
-# Importaciones del pipeline bilingüe
+# Importaciones del pipeline de Shorts
 import main as pipeline_main
 from generator import (
     CIERRE_VIDEO_ES,
@@ -73,6 +67,14 @@ from images import generar_secuencia_imagenes
 from video import montar_video_final
 from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
+
+# Importaciones del pipeline de Documentales Largos
+try:
+    from longform_pipeline import ejecutar_pipeline_completo
+    from longform_producer import _obtener_ultimo_expediente_json
+except ImportError:
+    ejecutar_pipeline_completo = None
+    _obtener_ultimo_expediente_json = None
 
 # ========================================================
 # PALETA SLATE / GRAPHITE MATE
@@ -97,11 +99,12 @@ C_TEAL = "#2DD4BF"            # Turquesa / Menta
 C_TEAL_DARK = "#134E48"       # Contenedor de badge turquesa
 C_PURPLE = "#C084FC"          # Púrpura pastel
 C_AMBER = "#FBBF24"           # Amarillo / Dorado suave
+C_AMBER_DARK = "#78350F"      # Contenedor badge dorado
 C_EMERALD = "#34D399"         # Verde estatus
 C_DANGER = "#F87171"          # Rojo coral
 C_DANGER_HOVER = "#EF4444"
 
-# 3 Slots estratégicos
+# 3 Slots estratégicos para Shorts
 HORARIOS_INFO = [
     ("Slot 01", "11:45 AM", "Almuerzo / Break"),
     ("Slot 02", "05:30 PM", "Regreso / Salida"),
@@ -132,8 +135,8 @@ class VisorFullResolucion(ctk.CTkToplevel):
         self.indice = indice_inicial
 
         self.title("Visor de Escenas HD // Full Resolution")
-        self.geometry("900x1000")
-        self.minsize(680, 800)
+        self.geometry("1000x900")
+        self.minsize(700, 700)
         self.configure(fg_color=C_BG)
 
         # Header
@@ -185,7 +188,7 @@ class VisorFullResolucion(ctk.CTkToplevel):
             pil_img = Image.open(ruta)
             orig_w, orig_h = pil_img.size
 
-            max_w, max_h = 820, 880
+            max_w, max_h = 920, 800
             ratio = min(max_w / orig_w, max_h / orig_h)
             display_w = int(orig_w * ratio)
             display_h = int(orig_h * ratio)
@@ -217,13 +220,14 @@ class CajaNegraStudio(ctk.CTk):
         super().__init__()
 
         self.title("CajaNegra Studio // Executive Dual Channel Suite")
-        self.geometry("1700x980")
+        self.geometry("1720x990")
         self.minsize(1480, 880)
         self.configure(fg_color=C_BG)
 
         self.ultimo_nombre_raiz = None
         self.ultimo_video_path_es = None
         self.ultimo_video_path_en = None
+        self.ultimo_video_largo_path = None
         self.is_running = False
 
         self.imagenes_generadas: list[Path] = []
@@ -270,16 +274,17 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"⚠️ No se pudo disparar notificación de Windows: {err}")
 
     def _construir_layout(self):
-        self.grid_columnconfigure(0, weight=0, minsize=410)
-        self.grid_columnconfigure(1, weight=0, minsize=540)
-        self.grid_columnconfigure(2, weight=1, minsize=650)
+        # Configuración de proporciones: Columna 1 (Logs) más amplia, Columna 3 más compacta
+        self.grid_columnconfigure(0, weight=0, minsize=540)
+        self.grid_columnconfigure(1, weight=0, minsize=520)
+        self.grid_columnconfigure(2, weight=1, minsize=520)
         self.grid_rowconfigure(0, weight=1)
 
         # ========================================================
-        # COLUMNA 1: CONTROL & TELEMETRÍA (410 px)
+        # COLUMNA 1: CONTROL & TELEMETRÍA (540 px)
         # ========================================================
         self.col1 = ctk.CTkFrame(
-            self, width=410, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
+            self, width=540, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col1.grid(row=0, column=0, padx=(12, 6), pady=12, sticky="nsew")
         self.col1.grid_propagate(False)
@@ -313,7 +318,7 @@ class CajaNegraStudio(ctk.CTk):
 
         tag_badge = ctk.CTkLabel(
             title_texts,
-            text="⚡ AUTOMATION ENGINE",
+            text="⚡ AUTOMATION ENGINE PRO",
             font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),
             text_color=C_TEAL,
             fg_color=C_TEAL_DARK,
@@ -330,47 +335,79 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MAIN,
         ).pack(anchor="w", pady=(2, 0))
 
-        # Tarjeta Descriptiva
-        card_desc = ctk.CTkFrame(
+        # Tarjeta 1: Shorts Cíclicos Bilingües
+        card_shorts = ctk.CTkFrame(
             self.col1, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
         )
-        card_desc.pack(fill="x", padx=14, pady=6)
+        card_shorts.pack(fill="x", padx=14, pady=6)
 
         ctk.CTkLabel(
-            card_desc,
-            text="PRODUCCIÓN SIMULTÁNEA [ES & EN]",
+            card_shorts,
+            text="SHORTS BILINGÜES [ES & EN]",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             text_color=C_TEAL,
         ).pack(anchor="w", padx=12, pady=(10, 2))
 
-        desc_pipeline_texto = (
-            "Genera 1 concepto rotando en 10 categorías, 12 imágenes SDXL compartidas "
-            "y exporta 2 videos sincronizados con subtítulos dinámicos: "
-            "'La Caja Negra' (Álvaro) y 'The Black Box Archives' (Christopher)."
-        )
+        desc_shorts = "Genera 1 concepto, 12 imágenes SDXL y 2 videos verticales 9:16 sincronizados."
         ctk.CTkLabel(
-            card_desc,
-            text=desc_pipeline_texto,
+            card_shorts,
+            text=desc_shorts,
             font=ctk.CTkFont(family="Segoe UI", size=11),
             text_color=C_TEXT_BODY,
             justify="left",
-            wraplength=360,
-        ).pack(anchor="w", padx=12, pady=(0, 10))
+            wraplength=490,
+        ).pack(anchor="w", padx=12, pady=(0, 8))
 
         self.btn_generar = ctk.CTkButton(
-            card_desc,
-            text="⚡ Iniciar Producción Cíclica (ES + EN)",
+            card_shorts,
+            text="⚡ Iniciar Producción Shorts (ES + EN)",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
-            height=38,
+            height=36,
             fg_color="#0F766E",
             hover_color="#115E59",
             text_color="#FFFFFF",
             corner_radius=8,
             command=self._iniciar_produccion_hilo,
         )
-        self.btn_generar.pack(fill="x", padx=12, pady=(0, 12))
+        self.btn_generar.pack(fill="x", padx=12, pady=(0, 10))
 
-        # Status & Barra
+        # Tarjeta 2: Documental Largo 16:9 (1-Click)
+        card_largos = ctk.CTkFrame(
+            self.col1, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
+        )
+        card_largos.pack(fill="x", padx=14, pady=(2, 6))
+
+        ctk.CTkLabel(
+            card_largos,
+            text="DOCUMENTAL LARGO [16:9 • 8-10 MIN]",
+            font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+            text_color=C_AMBER,
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+
+        desc_largos = "36 escenas con hook inicial, locución Álvaro, Ken Burns continuo, subtítulos y miniatura de alto impacto."
+        ctk.CTkLabel(
+            card_largos,
+            text=desc_largos,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=C_TEXT_BODY,
+            justify="left",
+            wraplength=490,
+        ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        self.btn_generar_largo = ctk.CTkButton(
+            card_largos,
+            text="🎬 Generar Documental Largo (1-Click)",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            height=36,
+            fg_color="#B45309",
+            hover_color="#92400E",
+            text_color="#FFFFFF",
+            corner_radius=8,
+            command=self._iniciar_produccion_largo_hilo,
+        )
+        self.btn_generar_largo.pack(fill="x", padx=12, pady=(0, 10))
+
+        # Status & Barra de Progreso
         stat_box = ctk.CTkFrame(self.col1, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
         stat_box.pack(fill="x", padx=14, pady=4)
 
@@ -393,7 +430,7 @@ class CajaNegraStudio(ctk.CTk):
         self.progress_bar.set(0)
         self.progress_bar.pack(fill="x", padx=16, pady=(4, 6))
 
-        # Consola
+        # Consola de Logs Ampliada
         ctk.CTkLabel(
             self.col1,
             text="TELEMETRÍA & LOGS DE EJECUCIÓN",
@@ -414,30 +451,36 @@ class CajaNegraStudio(ctk.CTk):
         self.txt_logs.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
         # ========================================================
-        # COLUMNA 2: CENTRO DE PUBLICACIÓN SIMULTÁNEO (540 px)
+        # COLUMNA 2: CENTRO DE PUBLICACIÓN & METADATOS (520 px)
         # ========================================================
         self.col2 = ctk.CTkFrame(
-            self, width=540, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
+            self, width=520, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col2.grid(row=0, column=1, padx=6, pady=12, sticky="nsew")
         self.col2.grid_propagate(False)
 
         ctk.CTkLabel(
             self.col2,
-            text="Centro de Publicación (Bilingüe)",
-            font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
+            text="Centro de Publicación & Metadata",
+            font=ctk.CTkFont(family="Segoe UI", size=19, weight="bold"),
             text_color=C_TEXT_MAIN,
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
-        self.pub_container = ctk.CTkFrame(self.col2, fg_color="transparent")
-        self.pub_container.pack(fill="both", expand=True, padx=14, pady=(0, 10))
+        # Pestañas para alternar entre Shorts y Documentales Largos
+        self.tabview_meta = ctk.CTkTabview(
+            self.col2, fg_color="transparent", segmented_button_fg_color=C_CARD,
+            segmented_button_selected_color="#0F766E", segmented_button_selected_hover_color="#115E59"
+        )
+        self.tabview_meta.pack(fill="both", expand=True, padx=14, pady=(0, 4))
+        self.tab_shorts = self.tabview_meta.add("📱 Shorts (Bilingüe)")
+        self.tab_largos = self.tabview_meta.add("🎬 Documental Largo")
 
-        # ----------------- BLOQUE ESPAÑOL -----------------
-        box_es = ctk.CTkFrame(self.pub_container, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
-        box_es.pack(fill="both", expand=True, pady=(0, 8))
+        # ----------------- CONTENIDO PESTAÑA SHORTS -----------------
+        box_es = ctk.CTkFrame(self.tab_shorts, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        box_es.pack(fill="both", expand=True, pady=(2, 6))
 
         hdr_es = ctk.CTkFrame(box_es, fg_color="transparent")
-        hdr_es.pack(fill="x", padx=14, pady=(8, 2))
+        hdr_es.pack(fill="x", padx=12, pady=(6, 2))
         ctk.CTkLabel(
             hdr_es, text="🇪🇸 LA CAJA NEGRA (ESPAÑOL)", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_TEAL
         ).pack(side="left")
@@ -447,34 +490,33 @@ class CajaNegraStudio(ctk.CTk):
         self.lbl_count_es.pack(side="right")
 
         self.entry_titulo_es = ctk.CTkEntry(
-            box_es, height=32, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), corner_radius=8
+            box_es, height=30, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), corner_radius=8
         )
-        self.entry_titulo_es.pack(fill="x", padx=14, pady=2)
+        self.entry_titulo_es.pack(fill="x", padx=12, pady=2)
 
         self.txt_desc_es = ctk.CTkTextbox(
             box_es, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word", corner_radius=8
         )
-        self.txt_desc_es.pack(fill="both", expand=True, padx=14, pady=4)
+        self.txt_desc_es.pack(fill="both", expand=True, padx=12, pady=3)
 
         btns_es = ctk.CTkFrame(box_es, fg_color="transparent")
-        btns_es.pack(fill="x", padx=14, pady=(2, 6))
+        btns_es.pack(fill="x", padx=12, pady=(2, 6))
         ctk.CTkButton(
-            btns_es, text="Copiar Título [ES]", height=26, width=130, fg_color="#333A4A", hover_color="#3F475A",
+            btns_es, text="Copiar Título [ES]", height=24, width=120, fg_color="#333A4A", hover_color="#3F475A",
             text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
             command=lambda: self._copiar_texto(self.entry_titulo_es.get().strip(), "Título [ES]")
         ).pack(side="left")
         ctk.CTkButton(
-            btns_es, text="Copiar Descripción [ES]", height=26, width=150, fg_color="#333A4A", hover_color="#3F475A",
+            btns_es, text="Copiar Descripción [ES]", height=24, width=140, fg_color="#333A4A", hover_color="#3F475A",
             text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
             command=lambda: self._copiar_texto(self.txt_desc_es.get("1.0", "end").strip(), "Descripción [ES]")
         ).pack(side="right")
 
-        # ----------------- BLOQUE INGLÉS -----------------
-        box_en = ctk.CTkFrame(self.pub_container, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
-        box_en.pack(fill="both", expand=True, pady=(0, 8))
+        box_en = ctk.CTkFrame(self.tab_shorts, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        box_en.pack(fill="both", expand=True, pady=(0, 6))
 
         hdr_en = ctk.CTkFrame(box_en, fg_color="transparent")
-        hdr_en.pack(fill="x", padx=14, pady=(8, 2))
+        hdr_en.pack(fill="x", padx=12, pady=(6, 2))
         ctk.CTkLabel(
             hdr_en, text="🇺🇸 THE BLACK BOX ARCHIVES (ENGLISH)", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_PURPLE
         ).pack(side="left")
@@ -484,40 +526,71 @@ class CajaNegraStudio(ctk.CTk):
         self.lbl_count_en.pack(side="right")
 
         self.entry_titulo_en = ctk.CTkEntry(
-            box_en, height=32, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), corner_radius=8
+            box_en, height=30, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), corner_radius=8
         )
-        self.entry_titulo_en.pack(fill="x", padx=14, pady=2)
+        self.entry_titulo_en.pack(fill="x", padx=12, pady=2)
 
         self.txt_desc_en = ctk.CTkTextbox(
             box_en, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word", corner_radius=8
         )
-        self.txt_desc_en.pack(fill="both", expand=True, padx=14, pady=4)
+        self.txt_desc_en.pack(fill="both", expand=True, padx=12, pady=3)
 
         btns_en = ctk.CTkFrame(box_en, fg_color="transparent")
-        btns_en.pack(fill="x", padx=14, pady=(2, 6))
+        btns_en.pack(fill="x", padx=12, pady=(2, 6))
         ctk.CTkButton(
-            btns_en, text="Copiar Título [EN]", height=26, width=130, fg_color="#333A4A", hover_color="#3F475A",
+            btns_en, text="Copiar Título [EN]", height=24, width=120, fg_color="#333A4A", hover_color="#3F475A",
             text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
             command=lambda: self._copiar_texto(self.entry_titulo_en.get().strip(), "Título [EN]")
         ).pack(side="left")
         ctk.CTkButton(
-            btns_en, text="Copiar Descripción [EN]", height=26, width=150, fg_color="#333A4A", hover_color="#3F475A",
+            btns_en, text="Copiar Descripción [EN]", height=24, width=140, fg_color="#333A4A", hover_color="#3F475A",
             text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
             command=lambda: self._copiar_texto(self.txt_desc_en.get("1.0", "end").strip(), "Descripción [EN]")
         ).pack(side="right")
 
-        # ----------------- HORARIOS Y STATUS -----------------
-        note_card = ctk.CTkFrame(self.pub_container, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
-        note_card.pack(fill="x", pady=(0, 6))
+        # ----------------- CONTENIDO PESTAÑA DOCUMENTAL LARGO -----------------
+        box_largo = ctk.CTkFrame(self.tab_largos, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        box_largo.pack(fill="both", expand=True, pady=(2, 6))
 
-        note_head = ctk.CTkFrame(note_card, fg_color="transparent")
-        note_head.pack(fill="x", padx=14, pady=(6, 2))
+        hdr_largo = ctk.CTkFrame(box_largo, fg_color="transparent")
+        hdr_largo.pack(fill="x", padx=12, pady=(6, 2))
         ctk.CTkLabel(
-            note_head, text="SLOTS DE PUBLICACIÓN & CONTROL DIARIO", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_AMBER
-        ).pack(anchor="w")
+            hdr_largo, text="🎬 EXPEDIENTE LARGO // LA CAJA NEGRA", font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_AMBER
+        ).pack(side="left")
+        self.lbl_count_largo = ctk.CTkLabel(
+            hdr_largo, text="0/100", font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MUTED
+        )
+        self.lbl_count_largo.pack(side="right")
+
+        self.entry_titulo_largo = ctk.CTkEntry(
+            box_largo, height=32, fg_color=C_INPUT, border_color=C_BORDER, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), corner_radius=8
+        )
+        self.entry_titulo_largo.pack(fill="x", padx=12, pady=2)
+
+        self.txt_desc_largo = ctk.CTkTextbox(
+            box_largo, fg_color=C_INPUT, border_color=C_BORDER, border_width=1, text_color=C_TEXT_MAIN, font=ctk.CTkFont(size=11), wrap="word", corner_radius=8
+        )
+        self.txt_desc_largo.pack(fill="both", expand=True, padx=12, pady=4)
+
+        btns_largo = ctk.CTkFrame(box_largo, fg_color="transparent")
+        btns_largo.pack(fill="x", padx=12, pady=(2, 6))
+        ctk.CTkButton(
+            btns_largo, text="Copiar Título Largo", height=24, width=130, fg_color="#333A4A", hover_color="#3F475A",
+            text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
+            command=lambda: self._copiar_texto(self.entry_titulo_largo.get().strip(), "Título Largo")
+        ).pack(side="left")
+        ctk.CTkButton(
+            btns_largo, text="Copiar Descripción & Capítulos", height=24, width=180, fg_color="#333A4A", hover_color="#3F475A",
+            text_color=C_TEXT_MAIN, corner_radius=6, font=ctk.CTkFont(size=10, weight="bold"),
+            command=lambda: self._copiar_texto(self.txt_desc_largo.get("1.0", "end").strip(), "Descripción Largo")
+        ).pack(side="right")
+
+        # ----------------- SLOTS Y LIMPIEZA -----------------
+        note_card = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
+        note_card.pack(fill="x", padx=14, pady=(2, 4))
 
         slots_grid = ctk.CTkFrame(note_card, fg_color="transparent")
-        slots_grid.pack(fill="x", padx=8, pady=(0, 8))
+        slots_grid.pack(fill="x", padx=8, pady=(4, 6))
 
         self.btn_slots_estado = []
         for i, (tag, hora, contexto) in enumerate(HORARIOS_INFO):
@@ -525,31 +598,30 @@ class CajaNegraStudio(ctk.CTk):
             b_frame.pack(side="left", expand=True, fill="x", padx=3, pady=2)
 
             ctk.CTkLabel(
-                b_frame, text=hora, font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"), text_color=C_TEXT_MAIN
-            ).pack(pady=(4, 0))
+                b_frame, text=hora, font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"), text_color=C_TEXT_MAIN
+            ).pack(pady=(2, 0))
             ctk.CTkLabel(
-                b_frame, text=contexto, font=ctk.CTkFont(size=9), text_color=C_TEXT_MUTED
+                b_frame, text=contexto, font=ctk.CTkFont(size=8), text_color=C_TEXT_MUTED
             ).pack(pady=(0, 2))
 
             btn_status = ctk.CTkButton(
                 b_frame,
                 text="⚪ PENDIENTE",
-                height=22,
-                font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),
+                height=20,
+                font=ctk.CTkFont(family="Segoe UI", size=8, weight="bold"),
                 fg_color="#333A4A",
                 hover_color="#3F475A",
                 text_color=C_TEXT_MUTED,
                 corner_radius=6,
             )
             btn_status.configure(command=lambda b=btn_status: self._toggle_estado_slot(b))
-            btn_status.pack(padx=6, pady=(0, 6), fill="x")
+            btn_status.pack(padx=4, pady=(0, 4), fill="x")
             self.btn_slots_estado.append(btn_status)
 
-        # Botón Limpieza Total (Post-Publicación)
         self.btn_limpieza = ctk.CTkButton(
             self.col2,
             text="Liberar Espacio Total (Post-Publicación)",
-            height=34,
+            height=32,
             fg_color=C_DANGER,
             hover_color=C_DANGER_HOVER,
             text_color="#FFFFFF",
@@ -557,10 +629,10 @@ class CajaNegraStudio(ctk.CTk):
             font=ctk.CTkFont(family="Segoe UI", weight="bold", size=11),
             command=self._limpiar_archivos_disco,
         )
-        self.btn_limpieza.pack(fill="x", padx=16, pady=(4, 14))
+        self.btn_limpieza.pack(fill="x", padx=16, pady=(4, 10))
 
         # ========================================================
-        # COLUMNA 3: MONITOR & ÁLBUM HD (EXPANDIDA / PROTAGONISTA)
+        # COLUMNA 3: MONITOR & ÁLBUM HD (MÁS COMPACTA)
         # ========================================================
         self.col3 = ctk.CTkFrame(
             self, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
@@ -568,10 +640,10 @@ class CajaNegraStudio(ctk.CTk):
         self.col3.grid(row=0, column=2, padx=(6, 12), pady=12, sticky="nsew")
 
         hdr_3 = ctk.CTkFrame(self.col3, fg_color="transparent")
-        hdr_3.pack(fill="x", padx=20, pady=(16, 4))
+        hdr_3.pack(fill="x", padx=16, pady=(16, 4))
 
         self.lbl_media_title = ctk.CTkLabel(
-            hdr_3, text="Monitor & Álbum HD", font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"), text_color=C_TEXT_MAIN
+            hdr_3, text="Monitor & Álbum HD", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"), text_color=C_TEXT_MAIN
         )
         self.lbl_media_title.pack(anchor="w")
 
@@ -580,11 +652,11 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.lbl_media_badge.pack(anchor="w")
 
-        # Visor 9:16 de Gran Formato
+        # Visor Panorámico Compacto
         self.preview_frame = ctk.CTkFrame(
-            self.col3, fg_color=C_INPUT, corner_radius=14, border_color=C_BORDER, border_width=1, height=520
+            self.col3, fg_color=C_INPUT, corner_radius=14, border_color=C_BORDER, border_width=1, height=440
         )
-        self.preview_frame.pack(fill="x", padx=20, pady=(4, 6))
+        self.preview_frame.pack(fill="x", padx=16, pady=(4, 4))
         self.preview_frame.pack_propagate(False)
 
         self.lbl_canvas_preview = ctk.CTkLabel(
@@ -592,11 +664,10 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.lbl_canvas_preview.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Botón para Full Resolución
         self.btn_ver_full = ctk.CTkButton(
             self.col3,
-            text="🔍 Ver a Resolución Completa (1024x1792)",
-            height=32,
+            text="🔍 Ver a Resolución Completa (HD)",
+            height=30,
             fg_color=C_CARD,
             hover_color=C_CARD_HOVER,
             border_color=C_BORDER,
@@ -607,7 +678,7 @@ class CajaNegraStudio(ctk.CTk):
             state="disabled",
             command=self._abrir_visor_hd,
         )
-        self.btn_ver_full.pack(fill="x", padx=20, pady=(2, 6))
+        self.btn_ver_full.pack(fill="x", padx=16, pady=(2, 4))
 
         # Álbum Horizontal
         ctk.CTkLabel(
@@ -615,23 +686,37 @@ class CajaNegraStudio(ctk.CTk):
             text="GALERÍA DE ESCENAS GENERADAS",
             font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
             text_color=C_TEXT_MUTED,
-        ).pack(anchor="w", padx=20, pady=(4, 2))
+        ).pack(anchor="w", padx=16, pady=(2, 2))
 
         self.album_scroll = ctk.CTkScrollableFrame(
-            self.col3, fg_color=C_INPUT, corner_radius=10, border_color=C_BORDER, border_width=1, height=150, orientation="horizontal"
+            self.col3, fg_color=C_INPUT, corner_radius=10, border_color=C_BORDER, border_width=1, height=130, orientation="horizontal"
         )
-        self.album_scroll.pack(fill="x", padx=20, pady=(2, 8))
+        self.album_scroll.pack(fill="x", padx=16, pady=(2, 6))
 
         self.botones_miniaturas: list[ctk.CTkButton] = []
 
-        # Botones de reproducción separados
+        # Controles de Reproducción
         ctrl_box = ctk.CTkFrame(self.col3, fg_color="transparent")
-        ctrl_box.pack(fill="x", padx=20, pady=(4, 16), side="bottom")
+        ctrl_box.pack(fill="x", padx=16, pady=(4, 14), side="bottom")
+
+        self.btn_play_largo = ctk.CTkButton(
+            ctrl_box,
+            text="▶ Reproducir Documental Largo (16:9)",
+            height=36,
+            fg_color=C_CARD,
+            hover_color=C_CARD_HOVER,
+            text_color=C_TEXT_MUTED,
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            state="disabled",
+            command=lambda: self._reproducir_archivo(self.ultimo_video_largo_path),
+        )
+        self.btn_play_largo.pack(fill="x", pady=(0, 6))
 
         self.btn_play_es = ctk.CTkButton(
             ctrl_box,
             text="▶ Reproducir Short [ES]",
-            height=38,
+            height=34,
             fg_color=C_CARD,
             hover_color=C_CARD_HOVER,
             text_color=C_TEXT_MUTED,
@@ -640,12 +725,12 @@ class CajaNegraStudio(ctk.CTk):
             state="disabled",
             command=lambda: self._reproducir_archivo(self.ultimo_video_path_es),
         )
-        self.btn_play_es.pack(fill="x", pady=(0, 6))
+        self.btn_play_es.pack(fill="x", pady=(0, 4))
 
         self.btn_play_en = ctk.CTkButton(
             ctrl_box,
             text="▶ Reproducir Short [EN]",
-            height=38,
+            height=34,
             fg_color=C_CARD,
             hover_color=C_CARD_HOVER,
             text_color=C_TEXT_MUTED,
@@ -711,7 +796,7 @@ class CajaNegraStudio(ctk.CTk):
         self.txt_logs.see("end")
 
         texto_limpio = texto.strip()
-        resumen = texto_limpio[:42] + "..." if len(texto_limpio) > 45 else texto_limpio
+        resumen = texto_limpio[:55] + "..." if len(texto_limpio) > 58 else texto_limpio
         self.lbl_status_text.configure(text=resumen)
 
     def _actualizar_progreso_video(self, pct: int, frame: int, total: int):
@@ -721,6 +806,9 @@ class CajaNegraStudio(ctk.CTk):
             self.lbl_status_text.configure(text=f"Render Video: {pct}% ({frame}/{total})")
         self.after(0, ui_update)
 
+    # ========================================================
+    # PIPELINE DE SHORTS (HILO)
+    # ========================================================
     def _iniciar_produccion_hilo(self):
         if self.is_running:
             return
@@ -731,9 +819,8 @@ class CajaNegraStudio(ctk.CTk):
         self.ultimo_video_path_en = None
         self._limpiar_monitor_preview("Iniciando pipeline bilingüe...")
 
-        self.btn_generar.configure(state="disabled", text="Procesando Pipeline Bilingüe...", fg_color="#1F2937")
-        self.btn_play_es.configure(state="disabled", text="Generando Short [ES]...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
-        self.btn_play_en.configure(state="disabled", text="Generando Short [EN]...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.btn_generar.configure(state="disabled", text="Procesando Shorts...", fg_color="#1F2937")
+        self.btn_generar_largo.configure(state="disabled")
         self.led_indicator.configure(text="● GENERANDO", text_color=C_TEAL)
         self.lbl_media_badge.configure(text="PREPARANDO GUIONES BILINGÜES", text_color=C_TEAL)
         self.progress_bar.set(0.05)
@@ -749,7 +836,6 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.12)
 
-            # 1. Guiones ES y EN
             self.log("Generando guion [ES] con Groq (~180-200 palabras)...")
             res_guion_es = generar_guion(tema, minimo=180, maximo=200)
             self.log("Adaptando guion [EN] para 'The Black Box Archives'...")
@@ -772,7 +858,6 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.25)
 
-            # 2. Generar 12 Imágenes con ComfyUI
             self.lbl_media_badge.configure(text="RENDERIZANDO EN COMFYUI", text_color=C_PURPLE)
             stop_watcher = threading.Event()
             watcher_thread = threading.Thread(
@@ -786,7 +871,6 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.55)
 
-            # 3. Síntesis de Audio Bilingüe
             self.log("Sintetizando voz en off [ES] con Álvaro...")
             ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
             clip_es = pipeline_main.mp.AudioFileClip(str(ruta_audio_es))
@@ -801,7 +885,6 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.70)
 
-            # 4. Montaje de Videos Base
             self.log("Montando video base [ES]...")
             logger_moviepy = MoviePyCallbackLogger(self._actualizar_progreso_video)
             ruta_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, custom_logger=logger_moviepy, idioma="es")
@@ -811,7 +894,6 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.85)
 
-            # 5. Quemado de Subtítulos con Whisper
             self.log("Quemando subtítulos en español con Whisper...")
             ruta_final_es = agregar_subtitulos_al_video(ruta_base_es, ruta_audio_es, idioma="es")
 
@@ -824,7 +906,6 @@ class CajaNegraStudio(ctk.CTk):
             self.ultimo_video_path_es = ruta_final_es
             self.ultimo_video_path_en = ruta_final_en
 
-            # 6. Metadatos Bilingües y Registro
             self.log("Generando archivos de metadatos independientes (ES & EN)...")
             ruta_meta_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
             ruta_meta_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
@@ -834,16 +915,15 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(1.0)
             self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)
-            self.lbl_media_badge.configure(text="2 VIDEOS PRODUCIDOS CON ÉXITO", text_color=C_EMERALD)
-            self.log("✔ PROCESO BILINGÜE FINALIZADO. Ambos Shorts listos para publicación.")
+            self.lbl_media_badge.configure(text="2 SHORTS LISTOS", text_color=C_EMERALD)
+            self.log("✔ PROCESO BILINGÜE FINALIZADO. Shorts listos.")
 
-            # Cargar simultáneamente la metadata de ambos idiomas
+            self.tabview_meta.set("📱 Shorts (Bilingüe)")
             self.after(100, lambda: self._cargar_metadatos_completos(ruta_meta_es, ruta_meta_en))
 
-            # Notificación emergente de Windows
             self.after(0, lambda: self._mostrar_notificacion_windows(
-                "🎬 Producción Completada // CajaNegraBot",
-                f"Tus dos Shorts sobre '{tema[:32]}...' ya están listos para publicar."
+                "🎬 Producción de Shorts Completada",
+                f"Tus dos Shorts sobre '{tema[:30]}...' ya están listos."
             ))
 
         except Exception as e:
@@ -852,16 +932,125 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"❌ Fallo crítico en el proceso: {e}")
         finally:
             self.is_running = False
-            self.btn_generar.configure(state="normal", text="⚡ Iniciar Producción Cíclica (ES + EN)", fg_color="#0F766E")
+            self.btn_generar.configure(state="normal", text="⚡ Iniciar Producción Shorts (ES + EN)", fg_color="#0F766E")
+            self.btn_generar_largo.configure(state="normal")
 
     # ========================================================
-    # VIGILANTE DE IMÁGENES (BARRIDO FINAL GARANTIZADO 12/12)
+    # PIPELINE DE DOCUMENTALES LARGOS (HILO + VIGILANTE EN VIVO)
+    # ========================================================
+    def _iniciar_produccion_largo_hilo(self):
+        if self.is_running:
+            return
+        if not ejecutar_pipeline_completo:
+            self.log("❌ No se encontró el módulo 'longform_pipeline.py'.")
+            return
+
+        self.is_running = True
+        self.ultimo_video_largo_path = None
+        self._limpiar_monitor_preview("Iniciando documental largo (16:9)...")
+
+        self.btn_generar_largo.configure(state="disabled", text="Produciendo Documental...", fg_color="#1F2937")
+        self.btn_generar.configure(state="disabled")
+        self.btn_play_largo.configure(state="disabled", text="Generando Documental Largo...", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.led_indicator.configure(text="● PRODUCIENDO LARGO", text_color=C_AMBER)
+        self.lbl_media_badge.configure(text="EXPEDIENTE DE 36 ESCENAS (16:9)", text_color=C_AMBER)
+        self.progress_bar.set(0.10)
+
+        hilo = threading.Thread(target=self._pipeline_largo_worker, daemon=True)
+        hilo.start()
+
+    def _vigilar_imagenes_largos_directo(self, stop_event: threading.Event):
+        """Monitorea la carpeta de producción activa para mostrar las imágenes 16:9 en directo."""
+        imagenes_mostradas = set()
+        dir_prod_base = BASE_DIR / "outputs" / "produccion_largos"
+
+        while not stop_event.is_set():
+            if dir_prod_base.exists():
+                subcarpetas = [d for d in dir_prod_base.iterdir() if d.is_dir()]
+                if subcarpetas:
+                    carpeta_activa = max(subcarpetas, key=lambda d: d.stat().st_mtime)
+                    carpeta_img = carpeta_activa / "imagenes_16_9"
+                    if carpeta_img.exists():
+                        encontradas = sorted(
+                            list(carpeta_img.glob("escena_*.jpg")),
+                            key=lambda p: int(p.stem.split("_")[-1]) if p.stem.split("_")[-1].isdigit() else 0
+                        )
+                        for img_path in encontradas:
+                            if img_path not in imagenes_mostradas and img_path.stat().st_size > 5000:
+                                imagenes_mostradas.add(img_path)
+                                num = int(img_path.stem.split("_")[-1]) if img_path.stem.split("_")[-1].isdigit() else len(imagenes_mostradas)
+                                self.after(0, self._agregar_imagen_a_album, img_path, num)
+            time.sleep(1.0)
+
+    def _pipeline_largo_worker(self):
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        stop_watcher = threading.Event()
+        watcher_thread = threading.Thread(
+            target=self._vigilar_imagenes_largos_directo, args=(stop_watcher,), daemon=True
+        )
+        watcher_thread.start()
+
+        try:
+            self.log("🎬 Iniciando pipeline completo de documental largo (1-Click)...")
+            
+            # Ejecutar todo el orquestador
+            ejecutar_pipeline_completo()
+
+            ultimo_json = _obtener_ultimo_expediente_json()
+            slug = ultimo_json.stem
+            carpeta_exp = BASE_DIR / "outputs" / "produccion_largos" / slug
+            ruta_video = BASE_DIR / "outputs" / "videos" / f"{slug}.mp4"
+
+            if ruta_video.exists():
+                self.ultimo_video_largo_path = ruta_video
+
+            # Cargar metadatos largos generados
+            ruta_txt_meta = carpeta_exp / "METADATA_YOUTUBE.txt"
+            if ruta_txt_meta.exists():
+                self.after(100, lambda: self._cargar_metadatos_largos(ruta_txt_meta))
+
+            self.progress_bar.set(1.0)
+            self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)
+            self.lbl_media_badge.configure(text="DOCUMENTAL 16:9 LISTO", text_color=C_EMERALD)
+            self.log(f"✔ DOCUMENTAL LARGO GENERADO CON ÉXITO: {ruta_video.name}")
+
+            if self.ultimo_video_largo_path and self.ultimo_video_largo_path.exists():
+                self.btn_play_largo.configure(
+                    state="normal",
+                    text="▶ Reproducir Documental Largo (16:9)",
+                    fg_color="#D97706",
+                    hover_color="#B45309",
+                    text_color="#FFFFFF"
+                )
+
+            self.tabview_meta.set("🎬 Documental Largo")
+
+            self.after(0, lambda: self._mostrar_notificacion_windows(
+                "🎬 Documental Largo Completado",
+                f"El video '{slug[:30]}...' ya está listo para subir a YouTube."
+            ))
+
+        except Exception as e:
+            self.led_indicator.configure(text="● ERROR", text_color=C_DANGER)
+            self.lbl_media_badge.configure(text="ERROR EN DOCUMENTAL", text_color=C_DANGER)
+            self.log(f"❌ Fallo en documental largo: {e}")
+        finally:
+            stop_watcher.set()
+            self.is_running = False
+            self.btn_generar_largo.configure(state="normal", text="🎬 Generar Documental Largo (1-Click)", fg_color="#B45309")
+            self.btn_generar.configure(state="normal")
+
+    # ========================================================
+    # VIGILANTE DE IMÁGENES (SHORTS)
     # ========================================================
     def _vigilar_imagenes_en_directo(self, nombre_base: str, stop_event: threading.Event):
         img_dir = BASE_DIR / "outputs" / "images"
         imagenes_mostradas = set()
 
-        def _escanear_y_agregar():
+        def _escanear():
             if not img_dir.exists():
                 return
             encontradas = sorted(
@@ -869,18 +1058,17 @@ class CajaNegraStudio(ctk.CTk):
                 key=lambda p: int(p.stem.split("_escena_")[-1]) if "_escena_" in p.stem else 0,
             )
             for img_path in encontradas:
-                if img_path not in imagenes_mostradas:
+                if img_path not in imagenes_mostradas and img_path.stat().st_size > 5000:
                     imagenes_mostradas.add(img_path)
                     num = int(img_path.stem.split("_escena_")[-1]) if "_escena_" in img_path.stem else len(imagenes_mostradas)
                     self.after(0, self._agregar_imagen_a_album, img_path, num)
 
         while not stop_event.is_set():
-            _escanear_y_agregar()
+            _escanear()
             time.sleep(0.5)
 
-        # Barrido final garantizado tras terminar la generación de ComfyUI
         time.sleep(0.5)
-        _escanear_y_agregar()
+        _escanear()
 
     def _agregar_imagen_a_album(self, ruta_img: Path, num_escena: int):
         if ruta_img not in self.imagenes_generadas:
@@ -889,53 +1077,64 @@ class CajaNegraStudio(ctk.CTk):
         idx = len(self.imagenes_generadas) - 1
         self.indice_imagen_activa = idx
 
-        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena}/12 generada")
+        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena} generada")
         self.btn_ver_full.configure(state="normal")
 
         try:
             pil_thumb = Image.open(ruta_img)
-            pil_thumb = pil_thumb.resize((60, 105), Image.Resampling.LANCZOS)
-            ctk_thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=(60, 105))
+            w_orig, h_orig = pil_thumb.size
+            if w_orig > h_orig:
+                thumb_w, thumb_h = 90, 50
+            else:
+                thumb_w, thumb_h = 50, 90
+
+            pil_thumb = pil_thumb.resize((thumb_w, thumb_h), Image.Resampling.LANCZOS)
+            ctk_thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=(thumb_w, thumb_h))
 
             btn_thumb = ctk.CTkButton(
                 self.album_scroll,
                 image=ctk_thumb,
                 text=f"E{num_escena}",
                 compound="top",
-                width=68,
-                height=140,
+                width=thumb_w + 10,
+                height=120,
                 fg_color=C_CARD,
                 hover_color=C_CARD_HOVER,
                 border_color=C_BORDER,
                 border_width=1,
                 corner_radius=8,
-                text_color=C_TEAL,
-                font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+                text_color=C_AMBER if w_orig > h_orig else C_TEAL,
+                font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
                 command=lambda i=idx, r=ruta_img, n=num_escena: self._seleccionar_desde_album(i, r, n)
             )
-            btn_thumb.pack(side="left", padx=4, pady=2)
+            btn_thumb.pack(side="left", padx=3, pady=2)
             self.botones_miniaturas.append(btn_thumb)
-
-            # Auto-scroll hacia la derecha
             self.album_scroll._parent_canvas.xview_moveto(1.0)
         except Exception:
             pass
 
     def _seleccionar_desde_album(self, indice: int, ruta_img: Path, num_escena: int):
         self.indice_imagen_activa = indice
-        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena}/12 seleccionada")
+        self._mostrar_imagen_en_canvas(ruta_img, f"Escena {num_escena} seleccionada")
 
     def _mostrar_imagen_en_canvas(self, ruta_img: Path, subtexto: str = ""):
         try:
             pil_img = Image.open(ruta_img)
-            w, h = 300, 533
+            w_orig, h_orig = pil_img.size
+            
+            # Formatos de despliegue optimizados para la columna 3
+            if w_orig > h_orig:
+                w, h = 480, 270
+            else:
+                w, h = 240, 426
+
             pil_img = pil_img.resize((w, h), Image.Resampling.LANCZOS)
             ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(w, h))
 
             self.lbl_canvas_preview.configure(image=ctk_img, text="")
             self.lbl_canvas_preview.image = ctk_img
             if subtexto:
-                self.lbl_media_badge.configure(text=subtexto.upper(), text_color=C_TEAL)
+                self.lbl_media_badge.configure(text=subtexto.upper(), text_color=C_AMBER if w_orig > h_orig else C_TEAL)
         except Exception:
             pass
 
@@ -952,10 +1151,10 @@ class CajaNegraStudio(ctk.CTk):
             except Exception as err:
                 self.log(f"⚠️ Error al abrir reproductor de Windows: {err}")
         else:
-            self.log("⚠️ El archivo de video no está listo.")
+            self.log("⚠️ El archivo de video aún no está disponible.")
 
     # ========================================================
-    # METADATOS Y ACCIONES
+    # PARSEO DE METADATOS Y ACCIONES
     # ========================================================
     def _parsear_metadata_txt(self, ruta_txt: Path) -> tuple[str, str]:
         if not ruta_txt.exists():
@@ -980,48 +1179,54 @@ class CajaNegraStudio(ctk.CTk):
         return tit, "\n".join(desc).strip()
 
     def _cargar_metadatos_completos(self, ruta_es: Path, ruta_en: Path):
-        # 1. Cargar Español
         tit_es, desc_es = self._parsear_metadata_txt(ruta_es)
         self.entry_titulo_es.delete(0, "end")
         self.entry_titulo_es.insert(0, tit_es)
         len_es = len(tit_es)
-        self.lbl_count_es.configure(
-            text=f"{len_es}/100",
-            text_color=C_DANGER if len_es > 100 else C_TEXT_MUTED
-        )
+        self.lbl_count_es.configure(text=f"{len_es}/100", text_color=C_DANGER if len_es > 100 else C_TEXT_MUTED)
         self.txt_desc_es.delete("1.0", "end")
         self.txt_desc_es.insert("1.0", desc_es)
 
-        # 2. Cargar Inglés
         tit_en, desc_en = self._parsear_metadata_txt(ruta_en)
         self.entry_titulo_en.delete(0, "end")
         self.entry_titulo_en.insert(0, tit_en)
         len_en = len(tit_en)
-        self.lbl_count_en.configure(
-            text=f"{len_en}/100",
-            text_color=C_DANGER if len_en > 100 else C_TEXT_MUTED
-        )
+        self.lbl_count_en.configure(text=f"{len_en}/100", text_color=C_DANGER if len_en > 100 else C_TEXT_MUTED)
         self.txt_desc_en.delete("1.0", "end")
         self.txt_desc_en.insert("1.0", desc_en)
 
-        # 3. Habilitar botones de reproducción independientes
         if self.ultimo_video_path_es and self.ultimo_video_path_es.exists():
-            self.btn_play_es.configure(
-                state="normal",
-                text="▶ Reproducir Short [ES]",
-                fg_color="#059669",
-                hover_color="#047857",
-                text_color="#FFFFFF"
-            )
-
+            self.btn_play_es.configure(state="normal", text="▶ Reproducir Short [ES]", fg_color="#059669", hover_color="#047857", text_color="#FFFFFF")
         if self.ultimo_video_path_en and self.ultimo_video_path_en.exists():
-            self.btn_play_en.configure(
-                state="normal",
-                text="▶ Reproducir Short [EN]",
-                fg_color="#0F766E",
-                hover_color="#115E59",
-                text_color="#FFFFFF"
-            )
+            self.btn_play_en.configure(state="normal", text="▶ Reproducir Short [EN]", fg_color="#0F766E", hover_color="#115E59", text_color="#FFFFFF")
+
+    def _cargar_metadatos_largos(self, ruta_txt: Path):
+        lineas = ruta_txt.read_text(encoding="utf-8").splitlines()
+        tit = ""
+        desc = []
+        modo = None
+
+        for l in lineas:
+            if "=== TÍTULO SUGERIDO ===" in l:
+                modo = "titulo"
+                continue
+            elif "=== DESCRIPCIÓN ===" in l:
+                modo = "desc"
+                continue
+            elif "=== ETIQUETAS (TAGS) ===" in l:
+                modo = "tags"
+                continue
+
+            if modo == "titulo" and l.strip():
+                tit = l.strip()
+            elif modo == "desc":
+                desc.append(l)
+
+        self.entry_titulo_largo.delete(0, "end")
+        self.entry_titulo_largo.insert(0, tit)
+        self.lbl_count_largo.configure(text=f"{len(tit)}/100", text_color=C_DANGER if len(tit) > 100 else C_TEXT_MUTED)
+        self.txt_desc_largo.delete("1.0", "end")
+        self.txt_desc_largo.insert("1.0", "\n".join(desc).strip())
 
     def _copiar_texto(self, texto: str, etiqueta: str):
         if texto:
@@ -1029,58 +1234,80 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"📋 {etiqueta} copiado al portapapeles.")
 
     def _limpiar_archivos_disco(self):
-        if not self.ultimo_nombre_raiz:
-            self.log("⚠️ No hay elementos en buffer para limpiar.")
+        import shutil
+
+        hay_shorts = bool(self.ultimo_nombre_raiz)
+        hay_largos = bool(self.ultimo_video_largo_path and self.ultimo_video_largo_path.exists())
+
+        if not hay_shorts and not hay_largos:
+            self.log("⚠️ No hay elementos o videos en buffer para limpiar.")
             return
 
-        nb = self.ultimo_nombre_raiz
         eliminados = 0
 
-        # 1. Purgar JSON (tanto el español como el inglés traducido *_en.json)
-        json_dir = BASE_DIR / "outputs" / "json"
-        if json_dir.exists():
-            for f in json_dir.glob("*.json"):
-                if f.stem.startswith(nb) or f.stem.endswith("_en"):
-                    f.unlink(missing_ok=True)
+        # 1. Purgar Shorts
+        if self.ultimo_nombre_raiz:
+            nb = self.ultimo_nombre_raiz
+            carpetas_shorts = [
+                ("json", "*.json"),
+                ("audio", f"{nb}_*.mp3"),
+                ("metadata", f"{nb}_*.txt"),
+                ("images", f"{nb}_escena_*.jpg"),
+                ("videos", f"{nb}_*.mp4")
+            ]
+            for dir_name, pat in carpetas_shorts:
+                d = BASE_DIR / "outputs" / dir_name
+                if d.exists():
+                    for f in d.glob(pat):
+                        try:
+                            f.unlink(missing_ok=True)
+                            eliminados += 1
+                        except OSError:
+                            pass
+
+            prompts_file = BASE_DIR / "outputs" / "prompts" / f"{nb}_prompts.json"
+            if prompts_file.exists():
+                prompts_file.unlink(missing_ok=True)
+                eliminados += 1
+
+        # 2. Purgar Documentales Largos
+        slug_largo = self.ultimo_video_largo_path.stem if self.ultimo_video_largo_path else None
+
+        if not slug_largo:
+            dir_prod_largos = BASE_DIR / "outputs" / "produccion_largos"
+            if dir_prod_largos.exists():
+                subcarpetas = [d for d in dir_prod_largos.iterdir() if d.is_dir()]
+                if subcarpetas:
+                    slug_largo = max(subcarpetas, key=lambda d: d.stat().st_mtime).name
+
+        if slug_largo:
+            carpeta_exp = BASE_DIR / "outputs" / "produccion_largos" / slug_largo
+            if carpeta_exp.exists():
+                try:
+                    shutil.rmtree(carpeta_exp)
                     eliminados += 1
+                    self.log(f"🗑️ Carpeta de producción larga eliminada: {slug_largo}")
+                except Exception as err:
+                    self.log(f"⚠️ No se pudo borrar la carpeta de producción: {err}")
 
-        # 2. Purgar Audios (ES y EN)
-        audio_dir = BASE_DIR / "outputs" / "audio"
-        if audio_dir.exists():
-            for f in audio_dir.glob(f"{nb}_*.mp3"):
-                f.unlink(missing_ok=True)
+            json_doc = BASE_DIR / "outputs" / "documentales_largos" / f"{slug_largo}.json"
+            if json_doc.exists():
+                json_doc.unlink(missing_ok=True)
                 eliminados += 1
 
-        # 3. Purgar Metadatos (ES y EN)
-        meta_dir = BASE_DIR / "outputs" / "metadata"
-        if meta_dir.exists():
-            for f in meta_dir.glob(f"{nb}_*.txt"):
-                f.unlink(missing_ok=True)
+            meta_doc = BASE_DIR / "outputs" / "metadata" / f"{slug_largo}_metadata.json"
+            if meta_doc.exists():
+                meta_doc.unlink(missing_ok=True)
                 eliminados += 1
 
-        # 4. Purgar Prompts
-        prompts_file = BASE_DIR / "outputs" / "prompts" / f"{nb}_prompts.json"
-        if prompts_file.exists():
-            prompts_file.unlink(missing_ok=True)
-            eliminados += 1
-
-        # 5. Purgar Imágenes de escenas
-        img_dir = BASE_DIR / "outputs" / "images"
-        if img_dir.exists():
-            for img in img_dir.glob(f"{nb}_escena_*.jpg"):
-                img.unlink(missing_ok=True)
+            vid_largo = BASE_DIR / "outputs" / "videos" / f"{slug_largo}.mp4"
+            if vid_largo.exists():
+                vid_largo.unlink(missing_ok=True)
                 eliminados += 1
 
-        # 6. Purgar Videos finales generados (ES y EN)
-        video_dir = BASE_DIR / "outputs" / "videos"
-        if video_dir.exists():
-            for vid in video_dir.glob(f"{nb}_*.mp4"):
-                vid.unlink(missing_ok=True)
-                eliminados += 1
+        self.log(f"🧹 Espacio liberado por completo: {eliminados} elementos y carpetas purgados.")
 
-        self.log(f"🧹 Espacio liberado por completo: {eliminados} archivos eliminados (videos, audios, JSON e imágenes).")
-
-        # Limpieza visual de la interfaz
+        # 3. Limpieza de cajas e interfaz
         self.entry_titulo_es.delete(0, "end")
         self.txt_desc_es.delete("1.0", "end")
         self.lbl_count_es.configure(text="0/100", text_color=C_TEXT_MUTED)
@@ -1089,13 +1316,19 @@ class CajaNegraStudio(ctk.CTk):
         self.txt_desc_en.delete("1.0", "end")
         self.lbl_count_en.configure(text="0/100", text_color=C_TEXT_MUTED)
 
+        self.entry_titulo_largo.delete(0, "end")
+        self.txt_desc_largo.delete("1.0", "end")
+        self.lbl_count_largo.configure(text="0/100", text_color=C_TEXT_MUTED)
+
         self.btn_play_es.configure(state="disabled", text="▶ Reproducir Short [ES]", fg_color=C_CARD, text_color=C_TEXT_MUTED)
         self.btn_play_en.configure(state="disabled", text="▶ Reproducir Short [EN]", fg_color=C_CARD, text_color=C_TEXT_MUTED)
+        self.btn_play_largo.configure(state="disabled", text="▶ Reproducir Documental Largo (16:9)", fg_color=C_CARD, text_color=C_TEXT_MUTED)
 
         self._limpiar_monitor_preview("Entorno limpiado por completo tras publicación.")
         self.ultimo_nombre_raiz = None
         self.ultimo_video_path_es = None
         self.ultimo_video_path_en = None
+        self.ultimo_video_largo_path = None
 
 
 if __name__ == "__main__":
