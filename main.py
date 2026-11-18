@@ -12,7 +12,6 @@ import moviepy.editor as mp
 # DETECCIÓN DE RUTA PERSISTENTE A LA RAÍZ DEL PROYECTO (--onefile)
 # ========================================================
 if getattr(sys, "frozen", False):
-    # En modo --onefile, sys.executable está en .../dist/CajaNegra_Studio.exe
     BASE_DIR = Path(sys.executable).resolve().parent.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
@@ -23,7 +22,7 @@ os.environ["CAJANEGRA_ROOT"] = str(BASE_DIR)
 HISTORIAL_FILE = BASE_DIR / "historial_temas.json"
 load_dotenv(BASE_DIR / ".env")
 
-# Módulos del pipeline actualizados
+# Módulos del pipeline
 from generator import CIERRE_VIDEO_ES, CIERRE_VIDEO_EN, generar_guion, traducir_guion_a_ingles, guardar_guion
 from tts import convertir_texto_a_voz
 from images import generar_secuencia_imagenes
@@ -31,88 +30,47 @@ from video import montar_video_final
 from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
 
+# 5 Pilares Temáticos Principales
 CATEGORIAS = [
     {
-        "id": "ciberseguridad_hackeos",
-        "nombre": "HACKEOS LEGENDARIOS Y FALLOS TECNOLÓGICOS",
+        "id": "asesinatos_venganzas_fallidas",
+        "nombre": "ASESINATOS Y VENGANZAS QUE SALIERON RIDÍCULAMENTE MAL",
         "descripcion": (
-            "Sucesos donde un fallo de código, un error técnico diminuto o un ciberataque puso en jaque infraestructuras, "
-            "bancos o corporaciones enteras. Abarca tanto los orígenes informáticos (bugs pioneros, phreaking) como "
-            "incidentes contemporáneos de alto impacto del siglo XXI (BlackEnergy, Stuxnet, apagones masivos por parches fallidos)."
+            "Criminales o conspiradores cuyos planes macabros terminaron en una comedia de enredos real, "
+            "autotrampas grotescas o blancos que resultaron indestructibles (como Michael Malloy o sicarios que se hicieron amigos de su objetivo). "
+            "Enfoque directo al absurdo, sin terminología forense densa."
         ),
     },
     {
-        "id": "absurdos_historicos_caos",
-        "nombre": "ERRORES RIDÍCULOS QUE DESATARON EL CAOS",
+        "id": "robos_arruinados_estupidez",
+        "nombre": "ROBOS MILLONARIOS ARRUINADOS POR ESTUPIDECES",
         "descripcion": (
-            "Momentos donde un malentendido infantil, una orden mal redactada o un descuido involuntario cambiaron la historia. "
-            "Desde la antigüedad o la edad media hasta meteduras de pata del siglo XX y XXI con consecuencias geopolíticas, económicas o sociales grotescas."
+            "Golpes a bancos, joyerías o transporte de valores donde burlaron alarmas avanzadas, "
+            "pero fueron atrapados por descuidos ridículos (dejar recibos con su nombre, puertas que decían jale, o pagar con billetes seriados)."
         ),
     },
     {
-        "id": "ciencia_limite_accidentes",
-        "nombre": "CIENCIA EXTREMA, ACCIDENTES Y PARADOJAS",
+        "id": "hackeos_crimenes_digitales",
+        "nombre": "HACKEOS Y CRÍMENES DIGITALES INSÓLITOS",
         "descripcion": (
-            "Experimentos al límite, incidentes en laboratorios documentados y fenómenos físicos desconcertantes. "
-            "Desde radiación y reacciones críticas (Demon Core, SL-1) hasta eventos recientes en aceleradores de partículas contemporáneos, "
-            "antimateria, o materiales que retan las leyes de la física cotidiana."
+            "Ataques informáticos millonarios y asaltos cibernéticos contados con lenguaje cotidiano. "
+            "Robos frustrados por faltas ortográficas (banco de Bangladesh), reclusos que hackearon prisiones desde una sala común o fallos técnicos insólitos."
         ),
     },
     {
-        "id": "supervivencia_inverosimil",
-        "nombre": "SUPERVIVENCIA HUMANA CONTRA TODO PRONÓSTICO",
+        "id": "errores_anomalias_monumentales",
+        "nombre": "ERRORES TONTOS Y ANOMALÍAS CON EFECTOS MONUMENTALES",
         "descripcion": (
-            "Personas comunes que escaparon de la muerte cuando la estadística marcaba cero posibilidades: caídas libres extremas, "
-            "encierros involuntarios en hábitats hostiles, aislamiento prolongado o naufragios documentados tanto históricos como de décadas recientes."
+            "Sustancias de consumo global (como el origen accidental del Viagra en ensayos cardíacos), inventos nacidos de descuidos de laboratorio "
+            "y accidentes científicos que crearon industrias multimillonarias por pura suerte."
         ),
     },
     {
-        "id": "robos_fugas_audaces",
-        "nombre": "ATRACOS IMPOSIBLES Y FUGAS DE PELÍCULA",
+        "id": "conflictos_leyes_absurdas",
+        "nombre": "GUERRAS, LEYES Y CONFLICTOS POR MOTIVOS ABSURDOS",
         "descripcion": (
-            "Golpes multimillonarios, robos de guante blanco y fugas donde la clave fue el ingenio técnico, la paciencia y la estrategia. "
-            "Atracos clásicos de bóvedas blindadas, túneles de alta ingeniería contemporáneos o fugas carcelarias que burlaron sistemas de máxima seguridad."
-        ),
-    },
-    {
-        "id": "biologia_parasitos_zombis",
-        "nombre": "BIOLOGÍA PERTURBADORA Y CRIATURAS AL LÍMITE",
-        "descripcion": (
-            "Parásitos, hongos, insectos y animales con adaptaciones evolutivas tan extremas o aterradoras que inspiraron el cine de terror. "
-            "Manipulación de conducta de huéspedes, supervivencia en fosas abisales o defensas químicas 100% comprobadas por biólogos."
-        ),
-    },
-    {
-        "id": "inventos_accidentales_errores",
-        "nombre": "ACCIDENTES Y EQUIVOCACIONES QUE CAMBIARON EL MUNDO",
-        "descripcion": (
-            "Herramientas, tecnologías, medicinas y productos de consumo universal que surgieron porque alguien arruinó un experimento "
-            "o buscaba algo totalmente opuesto. La serendipia humana transformada en impacto global."
-        ),
-    },
-    {
-        "id": "enigmas_medicos_psicologia",
-        "nombre": "ENIGMAS MÉDICOS Y LOCURA COLECTIVA",
-        "descripcion": (
-            "Casos clínicos desconcertantes documentados en la literatura médica, brotes de histeria o trastornos psicogénicos colectivos, "
-            "y síndromes neuropsicológicos inexplicables tanto de épocas pasadas como registrados en hospitales contemporáneos."
-        ),
-    },
-    {
-        "id": "naturaleza_anomalias_tierra",
-        "nombre": "ANOMALÍAS DE LA TIERRA Y NATURALEZA MORTAL",
-        "descripcion": (
-            "Lugares letales, fosas tóxicas, incendios subterráneos perpetuos y trampas geológicas activas en el planeta que parecen ficción "
-            "pero existen hoy. El peligro oculto en la geología terrestre."
-        ),
-    },
-    {
-        "id": "misterios_enigmas_documentados",
-        "nombre": "MISTERIOS Y ENIGMAS DOCUMENTADOS",
-        "descripcion": (
-            "Casos con expedientes policiales oficiales, bitácoras gubernamentales o registros científicos que desafían la lógica: "
-            "desapariciones terrestres o aéreas inexplicadas, transmisiones de radio fantasma captadas por antenas internacionales, "
-            "mensajes o manuscritos cifrados que nadie ha logrado romper, y expediciones oficiales donde el desenlace sigue sin respuesta documentada."
+            "Conflictos bélicos y movilizaciones militares desatadas por animales o comida (la Guerra del Cerdo, la Guerra de los Pasteles), "
+            "o litigios y normas legales tan disparatadas que parecen ficción pero ocurrieron de verdad."
         ),
     },
 ]
@@ -157,7 +115,7 @@ def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas
     temas_referencia = "\n".join(f"- {t}" for t in historial_temas)
 
     prompt_juez = f"""
-    Evalúa si la siguiente propuesta de video trata sobre EL MISMO evento, hecho, experimento o historia real que cualquiera de los casos en el historial.
+    Evalúa si la siguiente propuesta de video trata sobre EL MISMO evento, hecho o historia real que cualquiera de los casos en el historial.
 
     PROPUESTA A EVALUAR:
     "{nuevo_candidato}"
@@ -166,21 +124,22 @@ def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas
     {temas_referencia}
 
     Criterios:
-    - Responde DUPLICADO si es la misma historia (aunque cambien las palabras, idioma, o se use un nombre corto como 'Demon Core' frente a 'El Núcleo Demonio').
-    - Responde NUEVO si es un evento, experimento o descubrimiento diferente, aunque pertenezca a la misma disciplina.
+    - Responde DUPLICADO si es la misma historia (aunque cambien las palabras o el título).
+    - Responde NUEVO si es un evento o historia diferente.
 
     Responde ÚNICAMENTE con una sola palabra: 'DUPLICADO' o 'NUEVO'.
     """
 
     try:
         verificacion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": "Eres un árbitro editorial estricto. Respondes únicamente DUPLICADO o NUEVO."},
                 {"role": "user", "content": prompt_juez},
             ],
             temperature=0.0,
-            max_tokens=10,
+            max_completion_tokens=250,
+            extra_body={"reasoning_effort": "low"},
         )
         veredicto = verificacion.choices[0].message.content.strip().upper()
         return "DUPLICADO" in veredicto
@@ -207,40 +166,38 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
     lista_historial_prompt = "\n".join(f"- {t}" for t in temas_previos) if temas_previos else "Ninguno"
 
     prompt_generador = f"""
-    Actúa como editor jefe de curiosidades reales y divulgación en videos cortos virales.
-    Tu objetivo es proponer UNA curiosidad o hecho histórico/científico real con alto factor de sorpresa ("¿Cómo es posible que esto haya ocurrido?").
+    Actúa como productor de contenido viral enfocado en crímenes absurdos, hackeos y misterios reales insólitos.
+    Tu objetivo es proponer UN caso real, específico y comprobado que genere curiosidad morbosa y asombro ("¿En serio ocurrió esto?").
 
-    CATEGORÍA OBLIGATORIA PARA ESTE VIDEO:
+    CATEGORÍA OBLIGATORIA:
     {categoria['nombre']}
-    Descripción del enfoque: {categoria['descripcion']}
+    Descripción: {categoria['descripcion']}
 
-    REGLAS DE EQUILIBRIO TEMPORAL Y SELECCIÓN:
-    - Alterna libremente entre hitos de la historia clásica y sucesos contemporáneos/actuales (décadas de 1990, 2000, 2010 y siglo XXI). No te limites únicamente al siglo XIX ni a la Guerra Fría.
-    - NO menciones soldados en trincheras, frentes bélicos, aviones de combate bombarderos ni batallas de ejércitos.
-    - EL TEMA DEBE SER COMPLETAMENTE INÉDITO Y DIFERENTE A ESTE HISTORIAL COMPLETO:
+    REGLAS DE SELECCIÓN:
+    - El caso debe ser 100% verídico y comprobable.
+    - Debe resaltar la torpeza, la ironía, el error tonto o la audacia del hecho.
+    - Cero lenguaje académico denso; debe ser llamativo de inmediato.
+    - EL TEMA DEBE SER COMPLETAMENTE INÉDITO Y NO FIGURAR EN ESTE HISTORIAL:
     {lista_historial_prompt}
 
-    Criterios de calidad:
-    1. 100% verídico, comprobado y documentado por fuentes oficiales o científicas.
-    2. Debe contener un giro inesperado, un dilema técnico o una revelación impactante.
-    3. Fácil de entender para un público amplio en menos de 90 segundos.
-    4. Elige historias poco trilladas, evitando clichés desgastados en internet.
-
-    Devuelve ÚNICAMENTE el nombre claro del caso o la curiosidad. Sin comillas, sin introducciones ni explicaciones.
+    Devuelve ÚNICAMENTE el nombre descriptivo y con gancho del caso (ejemplos: 'El robo millonario arruinado por una caja de pizza', 'El sicario que terminó viviendo con la esposa de su víctima', 'El hackeo detenido por una falta de ortografía').
+    Sin comillas, sin introducciones ni explicaciones.
     """
 
     tema_candidato_final = ""
     for intento in range(max_intentos):
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
-                    "content": "Eres un editor de divulgación. Propones únicamente curiosidades documentadas inéditas, respetando los temas vetados.",
+                    "content": "Eres un editor de historias virales insólitas. Propones solo títulos directos de sucesos reales asombrosos y cómicos.",
                 },
                 {"role": "user", "content": prompt_generador},
             ],
-            temperature=0.85,
+            temperature=0.8,
+            max_completion_tokens=400,
+            extra_body={"reasoning_effort": "low"},
         )
 
         texto_respuesta = completion.choices[0].message.content.strip()
@@ -258,7 +215,7 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
         print(f"⚠️ El árbitro IA detectó que '{tema_candidato}' ya fue tratado en el historial. Reintentando ({intento + 1}/{max_intentos})...")
         tema_candidato_final = tema_candidato
 
-    return (tema_candidato_final if tema_candidato_final else "Curiosidad Inédita Documentada"), nuevo_indice
+    return (tema_candidato_final if tema_candidato_final else "Robo Insólito del Siglo"), nuevo_indice
 
 
 def registrar_tema_en_historial(tema: str, indice_categoria: int) -> None:
@@ -288,14 +245,14 @@ def main() -> int:
     print("   [ES] La Caja Negra  |  [EN] The Black Box Archives")
     print("====================================================")
 
-    # 1. Obtener tema con rotación fija de categoría y validación semántica inteligente
+    # 1. Obtener tema
     print("\n[1/8] Consultando un nuevo tema inédito a Groq...")
     tema, indice_cat = obtener_tema_automatico()
     print(f'🎯 Tema seleccionado: "{tema}"')
 
-    # 2. Generar Guiones (Español e Inglés)
+    # 2. Generar Guiones (ES calibrado a 210-230 palabras para superar el minuto)
     print("\n[2/8] Generando y adaptando guiones con Groq...")
-    resultado_guion_es = generar_guion(tema, minimo=180, maximo=200)
+    resultado_guion_es = generar_guion(tema, minimo=210, maximo=230)
     resultado_guion_en = traducir_guion_a_ingles(resultado_guion_es)
 
     # Extraer datos ES
@@ -309,19 +266,19 @@ def main() -> int:
     titulo_en = guion_data_en["titulo"]
     narracion_en = guion_data_en["narracion"]
 
-    # Guardar ambos archivos JSON
+    # Guardar JSONs
     ruta_json_es = guardar_guion(resultado_guion_es, sufijo="_es")
     ruta_json_en = guardar_guion(resultado_guion_en, sufijo="_en")
     nombre_raiz = ruta_json_es.stem.removesuffix("_es")
     print(f"✔ Guion [ES]: {titulo_es}")
     print(f"✔ Script [EN]: {titulo_en}")
 
-    # 3. Generar Secuencia de 12 Imágenes con ComfyUI (Compartidas)
+    # 3. Imágenes SDXL
     print("\n[3/8] Diseñando prompts visuales y renderizando 12 escenas compartidas en SDXL...")
     generar_secuencia_imagenes(narracion_visual, titulo_es, nombre_base=nombre_raiz, total_escenas=12)
     print("✔ Secuencia visual completada.")
 
-    # 4. Sintetizar Audios (TTS Álvaro [ES] y Christopher [EN])
+    # 4. Síntesis de voz
     print("\n[4/8] Sintetizando voces en off con Edge-TTS...")
     ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
     ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
@@ -337,12 +294,12 @@ def main() -> int:
     print(f"✔ Audio [ES] listo: {duracion_es:.2f}s")
     print(f"✔ Audio [EN] listo: {duracion_en:.2f}s")
 
-    # 5. Montar Videos Base
+    # 5. Montaje de video
     print("\n[5/8] Montando videos base sincronizados con Ken Burns y música...")
     ruta_video_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, idioma="es")
     ruta_video_base_en = montar_video_final(f"{nombre_raiz}_en", duracion_en, idioma="en")
 
-    # 6. Quemar Subtítulos Dinámicos con Whisper
+    # 6. Quemado de subtítulos
     print("\n[6/8] Transcribiendo y quemando subtítulos con Whisper...")
     ruta_final_es = agregar_subtitulos_al_video(ruta_video_base_es, ruta_audio_es, idioma="es")
     ruta_final_en = agregar_subtitulos_al_video(ruta_video_base_en, ruta_audio_en, idioma="en")
@@ -350,12 +307,12 @@ def main() -> int:
     eliminar_copias_base_subtituladas(ruta_final_es)
     eliminar_copias_base_subtituladas(ruta_final_en)
 
-    # 7. Metadatos de Publicación
+    # 7. Metadatos
     print("\n[7/8] Generando metadatos para YouTube Shorts...")
     ruta_txt_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
     ruta_txt_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
 
-    # 8. Registro en Historial
+    # 8. Historial
     registrar_tema_en_historial(tema, indice_cat)
 
     print("\n====================================================")

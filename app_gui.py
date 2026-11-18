@@ -830,7 +830,7 @@ class CajaNegraStudio(ctk.CTk):
 
     def _pipeline_worker(self):
         try:
-            self.log("Consultando Groq con rotación temática (10 categorías)...")
+            self.log("Consultando Groq con rotación temática (5 categorías)...")
             tema, indice_cat = pipeline_main.obtener_tema_automatico()
             self.log(f"Tema seleccionado: '{tema}'")
 
