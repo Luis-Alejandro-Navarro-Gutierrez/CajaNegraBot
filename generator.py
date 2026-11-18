@@ -19,6 +19,13 @@ else:
 
 load_dotenv(BASE_DIR / ".env")
 
+# Modelos disponibles con cuotas independientes
+MODELOS_GROQ = [
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-120b"
+]
+
 CIERRE_VIDEO_ES = "Dale Like y suscribete para mas contenido"
 CIERRE_VIDEO_EN = "Like and subscribe for more documented truths"
 
@@ -44,8 +51,25 @@ def _get_groq_client() -> Groq:
     return Groq(api_key=api_key)
 
 
+def _limpiar_y_parsear_json(texto: str) -> dict:
+    """Extrae y decodifica JSON válido aunque el modelo agregue bloques Markdown."""
+    texto_limpio = texto.strip()
+    if "```json" in texto_limpio:
+        partes = texto_limpio.split("```json")
+        texto_limpio = partes[1].split("```")[0].strip()
+    elif "```" in texto_limpio:
+        partes = texto_limpio.split("```")
+        texto_limpio = partes[1].split("```")[0].strip()
+
+    match = re.search(r"(\{.*\})", texto_limpio, re.DOTALL)
+    if match:
+        texto_limpio = match.group(1)
+
+    return json.loads(texto_limpio)
+
+
 def generar_guion(tema: str, minimo: int = 180, maximo: int = 200) -> dict:
-    """Genera un guion documental estructurado en español con Groq."""
+    """Genera un guion documental estructurado en español con Groq usando rotación de modelos."""
     client = _get_groq_client()
 
     prompt = f"""
@@ -53,37 +77,47 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 200) -> dict:
     Enfoque: misterio documental, hechos reales comprobados, tensión sostenida y revelaciones asombrosas sin tecnicismos densos.
     
     Reglas estrictas:
-    1. Longitud de narración: exactamente {minimo}-{maximo} palabras totales.
-    2. Comienza directo con un gancho potente "¿Sabías que...?".
-    3. Ritmo narrativo fluido: plantea el misterio o anomalía y revela lo inesperado mediante los propios hechos, SIN anunciar las partes de la historia.
-    4. PROHIBIDO terminantemente usar frases o muletillas de meta-narrativa como "el giro llegó", "el giro se dio", "el giro inesperado", "la sorpresa fue", "el clímax" o "la moraleja". El cambio de rumbo debe ser 100% implícito, orgánico y conducido por la acción (ejemplos: "Sin embargo, cuando abrieron...", "Pero los análisis revelaron algo aterrador...", "Todo cambió en un segundo cuando...").
-    5. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
-    6. Cero anotaciones de cámara o efectos de sonido; solo texto limpio para locución.
-    7. Asegúrate de cerrar la estructura JSON completamente.
+1. Longitud de narración: exactamente {minimo}-{maximo} palabras totales.
+2. Comienza directo con un gancho potente "¿Sabías que...?".
+3. Ritmo narrativo fluido: plantea el misterio o anomalía y revela lo inesperado mediante los propios hechos, SIN anunciar las partes de la historia.
+4. PROHIBIDO terminantemente usar frases o muletillas de meta-narrativa como "el giro llegó", "el giro se dio", "el giro inesperado", "la sorpresa fue", "el clímax" o "la moraleja". El cambio de rumbo debe ser 100% implícito, orgánico y conducido por la acción (ejemplos: "Sin embargo, cuando abrieron...", "Pero los análisis revelaron algo aterrador...", "Todo cambió en un segundo cuando...").
+5. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
+6. Cero anotaciones de cámara o efectos de sonido; solo texto limpio para locución.
+7. Asegúrate de cerrar la estructura JSON completamente.
 
-    Responde ÚNICAMENTE un JSON válido:
+    Responde ÚNICAMENTE un JSON válido con este formato exacto:
     {{"guion": {{"titulo": "Título intrigante", "narracion": "Texto completo"}}}}
     """
 
-    try:
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Eres guionista documental de videos virales de alta retención. La narrativa es inmersiva y jamás anuncia los giros explícitamente. Devuelve solo un documento JSON válido y estrictamente cerrado.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.45,
-            max_tokens=3000,
-            response_format={"type": "json_object"},
-        )
-        guion_json = json.loads(completion.choices[0].message.content)
-        guion_json["guion"]["narracion"] = _asegurar_cierre_video(guion_json["guion"]["narracion"], idioma="es")
-        return guion_json
-    except Exception as e:
-        raise RuntimeError(f"Error generando guion ES: {e}")
+    mensajes = [
+        {
+            "role": "system",
+            "content": "Eres guionista documental de videos virales de alta retención. La narrativa es inmersiva y jamás anuncia los giros explícitamente. Devuelve solo un documento JSON válido y estrictamente cerrado.",
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    ultimo_error = None
+    for modelo in MODELOS_GROQ:
+        try:
+            params = {
+                "model": modelo,
+                "messages": mensajes,
+                "temperature": 0.45,
+                "max_tokens": 1500,
+            }
+            if "gemma" not in modelo.lower():
+                params["response_format"] = {"type": "json_object"}
+
+            completion = client.chat.completions.create(**params)
+            guion_json = _limpiar_y_parsear_json(completion.choices[0].message.content)
+            guion_json["guion"]["narracion"] = _asegurar_cierre_video(guion_json["guion"]["narracion"], idioma="es")
+            return guion_json
+        except Exception as e:
+            ultimo_error = e
+            print(f"  ⚠ Modelo '{modelo}' falló al generar guion ES ({e}). Reintentando...")
+
+    raise RuntimeError(f"Error generando guion ES tras agotar modelos: {ultimo_error}")
 
 
 def traducir_guion_a_ingles(guion_es: dict) -> dict:
@@ -99,35 +133,45 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
     Source Script: {datos['narracion']}
     
     Rules:
-    1. Hook must start with "Did you know that...?"
-    2. Maintain exact narrative progression, factual accuracy, and word count (~180-200 words).
-    3. STRICTLY FORBIDDEN meta-narrative announcements like "the twist came", "the twist happened", "the unexpected plot twist", or "the climax was". Reveal the turn of events purely through actions and facts (e.g., "However, upon closer inspection...", "What investigators actually discovered shook everyone...", "Everything collapsed when...").
-    4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
-    5. Ensure the JSON structure is strictly complete and properly closed.
+1. Hook must start with "Did you know that...?"
+2. Maintain exact narrative progression, factual accuracy, and word count (~180-200 words).
+3. STRICTLY FORBIDDEN meta-narrative announcements like "the twist came", "the twist happened", "the unexpected plot twist", or "the climax was". Reveal the turn of events purely through actions and facts (e.g., "However, upon closer inspection...", "What investigators actually discovered shook everyone...", "Everything collapsed when...").
+4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
+5. Ensure the JSON structure is strictly complete and properly closed.
 
-    Return ONLY valid JSON:
+    Return ONLY valid JSON with this exact structure:
     {{"guion": {{"titulo": "Captivating English Title", "narracion": "English narration text"}}}}
     """
 
-    try:
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert documentary scriptwriter. Deliver cinematic immersion without declaring plot transitions. Output strict, complete, and properly closed JSON only.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=3000,
-            response_format={"type": "json_object"},
-        )
-        guion_en = json.loads(completion.choices[0].message.content)
-        guion_en["guion"]["narracion"] = _asegurar_cierre_video(guion_en["guion"]["narracion"], idioma="en")
-        return guion_en
-    except Exception as e:
-        raise RuntimeError(f"Error traduciendo guion EN: {e}")
+    mensajes = [
+        {
+            "role": "system",
+            "content": "You are an expert documentary scriptwriter. Deliver cinematic immersion without declaring plot transitions. Output strict, complete, and properly closed JSON only.",
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    ultimo_error = None
+    for modelo in MODELOS_GROQ:
+        try:
+            params = {
+                "model": modelo,
+                "messages": mensajes,
+                "temperature": 0.3,
+                "max_tokens": 1500,
+            }
+            if "gemma" not in modelo.lower():
+                params["response_format"] = {"type": "json_object"}
+
+            completion = client.chat.completions.create(**params)
+            guion_en = _limpiar_y_parsear_json(completion.choices[0].message.content)
+            guion_en["guion"]["narracion"] = _asegurar_cierre_video(guion_en["guion"]["narracion"], idioma="en")
+            return guion_en
+        except Exception as e:
+            ultimo_error = e
+            print(f"  ⚠ Modelo '{modelo}' falló al traducir guion EN ({e}). Reintentando...")
+
+    raise RuntimeError(f"Error traduciendo guion EN tras agotar modelos: {ultimo_error}")
 
 
 def guardar_guion(guion_data: dict, sufijo: str = "", nombre_base_fijo: str = "") -> Path:
