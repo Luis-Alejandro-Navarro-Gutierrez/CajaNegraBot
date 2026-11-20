@@ -7,11 +7,24 @@ Ejecuta todo el flujo de producción con 1 solo clic:
 4. Ensamblaje de video con Ken Burns suave y subtítulos
 5. Generación de Metadata para YouTube (Título, Descripción, Timestamps, Tags)
 """
+import os
 import sys
 import time
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
+# ========================================================
+# DETECCIÓN DE RUTA PERSISTENTE (--onefile friendly)
+# ========================================================
+if "CAJANEGRA_ROOT" in os.environ:
+    BASE_DIR = Path(os.environ["CAJANEGRA_ROOT"])
+elif getattr(sys, "frozen", False):
+    exe_path = Path(sys.executable).resolve()
+    BASE_DIR = exe_path.parent.parent if exe_path.parent.name.lower() == "dist" else exe_path.parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+os.chdir(str(BASE_DIR))
+os.environ["CAJANEGRA_ROOT"] = str(BASE_DIR)
 
 from longform_generator import generar_documental_completo
 from longform_producer import ejecutar_produccion, _obtener_ultimo_expediente_json
@@ -30,14 +43,17 @@ def ejecutar_pipeline_completo():
     print("\n>>> [PASO 1/5] GENERANDO GUION (36 ESCENAS + ABREBOCAS)...")
     generar_documental_completo()
 
-    # Identificar la carpeta recién creada
+    # 2. PRODUCCIÓN DE AUDIO E IMÁGENES
+    print("\n>>> [PASO 2/5] PRODUCIENDO AUDIO (EDGE TTS) E IMÁGENES (COMFYUI)...")
+    ejecutar_produccion()
+
+    # Identificar la carpeta tras haber sido creada por producer
     ultimo_json = _obtener_ultimo_expediente_json()
     slug = ultimo_json.stem
     carpeta_expediente = BASE_DIR / "outputs" / "produccion_largos" / slug
 
-    # 2. PRODUCCIÓN DE AUDIO E IMÁGENES
-    print("\n>>> [PASO 2/5] PRODUCIENDO AUDIO (EDGE TTS) E IMÁGENES (COMFYUI)...")
-    ejecutar_produccion()
+    if not carpeta_expediente.exists():
+        raise FileNotFoundError(f"No se encontró el directorio de producción: {carpeta_expediente}")
 
     # 3. MINIATURA
     print("\n>>> [PASO 3/5] COMPONIENDO MINIATURA FINAL CON TEXTO DE IMPACTO...")
@@ -54,7 +70,7 @@ def ejecutar_pipeline_completo():
     tiempo_total = (time.time() - t_inicio) / 60
     print("\n" + "=" * 65)
     print(f" 🎉 ¡EXPEDIENTE COMPLETADO EN {tiempo_total:.1f} MINUTOS!")
-    print(f" 📂 Revisa tu material en: outputs/produccion_largos/{slug}/")
+    print(f" 📂 Material disponible en: outputs/produccion_largos/{slug}/")
     print(f" 🎬 Video exportado en: outputs/videos/{slug}.mp4")
     print("=" * 65)
 

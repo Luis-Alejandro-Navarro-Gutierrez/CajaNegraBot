@@ -1,5 +1,6 @@
 """
 Módulo para componer texto de alto impacto sobre miniatura_raw.jpg usando FFmpeg nativo.
+Enfocado en frases de asombro, ironía y curiosidad para portadas estilo cómic.
 Canal: La Caja Negra
 """
 import os
@@ -23,11 +24,11 @@ else:
 
 load_dotenv(BASE_DIR / ".env")
 
-# Modelos activos en tu cuenta para evitar límites de cuota (429)
+# Modelos disponibles en tu panel de Groq
 MODELOS_MINIATURA = [
     "openai/gpt-oss-20b",
-    "qwen/qwen3.8-27b",
-    "openai/gpt-oss-120b"
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.8-27b"
 ]
 
 
@@ -52,56 +53,61 @@ def _obtener_datos_documental(nombre_carpeta: str) -> dict:
 
 
 def generar_texto_impacto(nombre_expediente: str) -> str:
-    """Diseña una frase de 2 a 4 palabras de intriga, shock o revelación conectada al caso."""
+    """Diseña una frase de 2 a 4 palabras de incredulidad, ironía o shock conectada al caso."""
     datos_doc = _obtener_datos_documental(nombre_expediente)
     titulo = datos_doc.get("titulo", nombre_expediente.replace("_", " "))
     hilo = datos_doc.get("hilo_conductor", "")
     casos = [c.get("titulo_caso", "") for c in datos_doc.get("capitulos_meta", [])]
-    casos_str = ", ".join(casos) if casos else "Crímenes y misterios sin resolver"
+    casos_str = ", ".join(casos) if casos else "Crímenes absurdos y fallos insólitos"
 
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     client = Groq(api_key=api_key)
 
     prompt = f"""
-    Eres el director de arte y miniaturas de YouTube para 'La Caja Negra' (documentales serios de misterio, crímenes y tecnología).
+    Eres el director de portadas de YouTube para 'La Caja Negra'.
+    Tus miniaturas tienen estilo de ilustración de cómic moderno, colorido y dinámico.
+    Tratas historias reales sobre crímenes absurdos, robos arruinados por tonterías, hackeos insólitos y errores monumentales.
 
-    EXPEDIENTE:
+    EXPEDIENTE ACTUAL:
     - Título: {titulo}
     - Casos reales tratados: {casos_str}
-    - Tesis o enigma central: {hilo}
-
-    CONTEXTO VISUAL:
-    La portada muestra una escena tensa con un sujeto en primer plano que refleja shock, temor o el descubrimiento de algo que debía permanecer oculto.
+    - Tesis central: {hilo}
 
     TAREA:
-    Escribe una frase magnética y narrativa de EXACTAMENTE 2, 3 O 4 PALABRAS en ESPAÑOL, en MAYÚSCULAS.
-    Debe despertar intriga inmediata, tensión o una pregunta no resuelta en la mente del espectador.
+    Escribe una frase magnética, impactante y con gancho de EXACTAMENTE 2, 3 O 4 PALABRAS en ESPAÑOL, en MAYÚSCULAS.
+    Debe despertar curiosidad inmediata, risa incrédula ("¿Cómo pudieron hacer eso?") o asombro total.
 
-    EJEMPLOS DE ALTO IMPACTO (MISTERIO Y SHOCK):
-    - "VIO LO IMPOSIBLE"
-    - "NUNCA DEBIÓ ENTRAR"
-    - "NO FUE UN ERROR"
-    - "¿QUIÉN DIO LA ORDEN?"
-    - "SABÍAN LA VERDAD"
-    - "ESTABA VIVO"
-    - "BORRARON LA PRUEBA"
-    - "EL MINUTO FINAL"
+    EJEMPLOS DE ALTO CTR (IRONÍA, RIDÍCULO Y ASOMBRO REAL):
+    - "¿EN SERIO PASÓ?"
+    - "EL PEOR ERROR"
+    - "ERA TAN FÁCIL"
+    - "NADIE LO NOTÓ"
+    - "PLAN PERFECTO... CASI"
+    - "TODO SE DERRUMBÓ"
+    - "POR UNA ESTUPIDEZ"
+    - "NO TIENE SENTIDO"
+    - "EL GIRO FINAL"
 
     REGLAS ESTRICTAS:
-    - PROHIBIDO usar palabras cliché como "ERROR FATAL", "VERDAD SILENCIADA", "PELIGRO" o "CASO CERRADO".
-    - NO exceder 4 palabras.
-    - Responde ÚNICAMENTE las palabras elegidas, sin comillas, sin explicaciones, sin puntos finales.
+    - CERO términos aburridos o académicos.
+    - CERO clichés de terror (nada de "CASO CERRADO", "SANGRE", "MUERTE").
+    - Máximo 4 palabras.
+    - Devuelve ÚNICAMENTE las palabras elegidas en MAYÚSCULAS, sin comillas ni explicaciones.
     """
 
-    texto_final = "NO FUE UN ERROR"
+    texto_final = "EL PEOR ERROR"
     for modelo in MODELOS_MINIATURA:
         try:
-            completion = client.chat.completions.create(
-                model=modelo,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.65,
-                max_tokens=50,
-            )
+            params = {
+                "model": modelo,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7,
+                "max_completion_tokens": 50,
+            }
+            if "openai" in modelo.lower():
+                params["extra_body"] = {"reasoning_effort": "low"}
+
+            completion = client.chat.completions.create(**params)
             resultado = completion.choices[0].message.content.strip()
             lineas = [l.strip() for l in resultado.splitlines() if l.strip()]
             if lineas:
@@ -111,7 +117,7 @@ def generar_texto_impacto(nombre_expediente: str) -> str:
             continue
 
     # Limpieza estricta de caracteres conflictivos para filtros FFmpeg
-    for char in ['"', "'", ":", "\\", "%", "[", "]", ";", ",", ".", "¡", "!"]:
+    for char in ['"', "'", ":", "\\", "%", "[", "]", ";", ",", ".", "¡", "!", "“", "”"]:
         texto_final = texto_final.replace(char, "")
 
     palabras = texto_final.split()
@@ -131,31 +137,30 @@ def renderizar_miniatura_final(carpeta_expediente: Path):
 
     # 1. Obtener texto de impacto contextualizado
     texto_hook = generar_texto_impacto(carpeta_expediente.name)
-    print(f"📌 Texto de alto impacto para miniatura: '{texto_hook}'")
+    print(f"📌 Texto de alto impacto para portada cómic: '{texto_hook}'")
 
     # 2. Escapar caracteres para FFmpeg drawtext
     texto_ffmpeg = texto_hook.replace(" ", "\\ ").replace("¿", "\\¿").replace("?", "\\?")
 
-    # 3. Filtro cinematográfico:
-    # - Sin caja negra plana que opaque la imagen (box=0)
-    # - Letras grandes (fontsize=h*0.16)
-    # - Amarillo de contraste (#FFE600)
-    # - Trazo negro exterior ancho (borderw=10) para máxima legibilidad
-    # - Sombra profunda para despegar el texto del fondo
-    # - Posición en el tercio superior izquierdo (x=w*0.06, y=h*0.16)
+    # 3. Filtro visual estilo cómic moderno:
+    # - Tipografía Impact con tamaño proporcional grande (h*0.15)
+    # - Amarillo cómic vibrante (#FFE500)
+    # - Borde negro extra grueso (borderw=12) para despegar sobre cualquier fondo ilustrado
+    # - Sombra suave desplazada (shadowx=6, shadowy=6)
+    # - Ubicación en esquina superior izquierda con margen limpio (x=w*0.06, y=h*0.14)
     filtro_drawtext = (
         f"drawtext=text='{texto_ffmpeg}':"
         f"font='Impact':"
-        f"fontsize=h*0.16:"
-        f"fontcolor=0xFFE600:"
-        f"borderw=10:"
+        f"fontsize=h*0.15:"
+        f"fontcolor=0xFFE500:"
+        f"borderw=12:"
         f"bordercolor=black:"
-        f"shadowcolor=black@0.9:"
-        f"shadowx=7:"
-        f"shadowy=7:"
+        f"shadowcolor=black@0.85:"
+        f"shadowx=6:"
+        f"shadowy=6:"
         f"box=0:"
         f"x=w*0.06:"
-        f"y=h*0.16"
+        f"y=h*0.14"
     )
 
     comando = [
@@ -175,7 +180,7 @@ def renderizar_miniatura_final(carpeta_expediente: Path):
             text=True,
             check=True,
         )
-        print(f"✔ Miniatura final generada exitosamente en:\n📁 {ruta_salida}")
+        print(f"✔ Portada final lista en:\n📁 {ruta_salida}")
     except subprocess.CalledProcessError as e:
         print(f"❌ Error ejecutando FFmpeg para la miniatura:\n{e.stderr}")
     except FileNotFoundError:

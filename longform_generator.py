@@ -1,7 +1,8 @@
 """
 Módulo de planificación y guionización modular para documentales largos (8-10 min).
-Enfocado en Thrillers, Robos Maestros, Hackeos Históricos, Supervivencia Extrema y True Crime.
+Enfocado en Casos Absurdos, Robos Arruinados por Estupideces, Hackeos Insólitos y Crímenes con Giros Cómicos.
 Genera guion estructurado con Gancho Inicial estilo '¿Sabías que...?', 36 escenas sincronizadas y Cierre con CTA.
+Estilo visual: Cómic moderno limpio, novela gráfica europea con variedad de planos (paisajes, objetos, acción y reacciones).
 Canal: La Caja Negra
 """
 import os
@@ -25,11 +26,10 @@ else:
 
 load_dotenv(BASE_DIR / ".env")
 
-# Modelos activos en Groq (cuotas independientes)
 MODELOS_GROQ = [
     "openai/gpt-oss-20b",
-    "qwen/qwen3.8-27b",
-    "openai/gpt-oss-120b"
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.8-27b"
 ]
 
 RUTA_HISTORIAL_LARGOS = BASE_DIR / "historial_largos.json"
@@ -37,11 +37,11 @@ DIR_OUTPUT_LARGOS = BASE_DIR / "outputs" / "documentales_largos"
 DIR_OUTPUT_LARGOS.mkdir(parents=True, exist_ok=True)
 
 CATEGORIAS_LARGAS = [
-    "1. GOLPES MAESTROS Y ROBOS DEL SIGLO: Bóvedas inexpugnables, túneles imposibles, disfraces, robos de diamantes, bancos centrales burlados por ingenio puro.",
-    "2. CIBERATAQUES Y HACKERS FANTASMA: Asaltos a redes SWIFT interbancarias, armas digitales militares (Stuxnet), malware millonario, hackers solitarios burlando al Servicio Secreto.",
-    "3. CÓDIGOS SECRETOS, ESPIONAJE Y OPERACIONES IMPOSIBLES: Máquinas indescifrables (Enigma), saboteadores infiltrados, estafadores legendarios, operaciones clandestinas de la Guerra Fría.",
-    "4. SUPERVIVENCIA HUMANA EXTREMA: Desastres en aislamiento absoluto, caídas aéreas libres, rescates subacuáticos en cuevas oscuras, supervivencia al límite en montañas y océanos.",
-    "5. DEPREDADORES HUMANOS Y CRÍMENES METÓDICOS: Cacerías criminales históricas, criptogramas sin resolver, crímenes a sangre fría, investigaciones forenses contrarreloj."
+    "1. ASESINATOS Y VENGANZAS QUE SALIERON RIDÍCULAMENTE MAL: Conspiradores, criminales o planes macabros reales que terminaron en una comedia de enredos, autotrampas involuntarias o giros cómicos insólitos.",
+    "2. ROBOS MILLONARIOS ARRUINADOS POR ESTUPIDECES: Asaltos millonarios a bancos, museos, joyerías o transportes blindados que burlaron seguridad de punta pero colapsaron por descuidos absurdos de sentido común.",
+    "3. HACKEOS Y CRÍMENES DIGITALES INSÓLITOS: Ataques informáticos multimillonarios, robos digitales y estafas en línea desbaratados por descuidos cotidianos, fallos ortográficos o negligencias técnicas insólitas.",
+    "4. ERRORES TONTOS Y ANOMALÍAS CON EFECTOS MONUMENTALES: Descuidos en laboratorios, fallos de traducción o accidentes comerciales que crearon imperios multimillonarios o cambiaron la historia por pura casualidad.",
+    "5. GUERRAS, LEYES Y CONFLICTOS POR MOTIVOS ABSURDOS: Movilizaciones militares, disputas diplomáticas o litigios judiciales de enorme escala originados por incidentes ridículos, animales, comida o motivos triviales."
 ]
 
 
@@ -53,7 +53,6 @@ def _get_groq_client() -> Groq:
 
 
 def _limpiar_y_parsear_json(texto: str) -> dict:
-    """Extrae y decodifica JSON válido aunque el modelo agregue bloques Markdown."""
     texto_limpio = texto.strip()
     if "```json" in texto_limpio:
         partes = texto_limpio.split("```json")
@@ -69,7 +68,7 @@ def _limpiar_y_parsear_json(texto: str) -> dict:
     return json.loads(texto_limpio)
 
 
-def _completar_con_groq(messages: list, max_tokens: int = 4096, temp: float = 0.35) -> dict:
+def _completar_con_groq(messages: list, max_tokens: int = 4096, temp: float = 0.5) -> dict:
     client = _get_groq_client()
     ultimo_error = None
 
@@ -79,10 +78,10 @@ def _completar_con_groq(messages: list, max_tokens: int = 4096, temp: float = 0.
                 "model": modelo,
                 "messages": messages,
                 "temperature": temp,
-                "max_tokens": max_tokens,
+                "max_completion_tokens": max_tokens,
             }
-            if "gemma" not in modelo.lower():
-                params["response_format"] = {"type": "json_object"}
+            if "openai" in modelo.lower():
+                params["extra_body"] = {"reasoning_effort": "low"}
 
             res = client.chat.completions.create(**params)
             contenido = res.choices[0].message.content
@@ -116,61 +115,130 @@ def _cargar_historial() -> list:
 
 
 def _guardar_historial(temas_usados: list) -> None:
+    temas_unicos = []
+    for t in temas_usados:
+        if t not in temas_unicos:
+            temas_unicos.append(t)
+
     RUTA_HISTORIAL_LARGOS.write_text(
-        json.dumps(temas_usados, ensure_ascii=False, indent=2),
+        json.dumps(temas_unicos, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
 
 
-def planificar_episodio_largo() -> dict:
+def es_caso_duplicado_con_ia(client: Groq, caso_propuesto: str, historial: list[str]) -> bool:
+    if not historial:
+        return False
+
+    caso_limpio = caso_propuesto.strip().lower()
+    for h in historial:
+        if caso_limpio == h.strip().lower():
+            return True
+
+    casos_referencia = "\n".join(f"- {h}" for h in historial[-40:])
+
+    prompt_juez = f"""
+    Eres un árbitro editorial y verificador histórico estricto para un canal de documentales.
+    Evalúa si la siguiente propuesta relata EL MISMO evento o suceso histórico que cualquiera de los ya tratados en el canal.
+
+    CASO PROPUESTO A EVALUAR:
+    "{caso_propuesto}"
+
+    HISTORIAL DE CASOS YA CONTADOS EN EL CANAL:
+    {casos_referencia}
+
+    CRITERIOS DE DESCARTE:
+    - Responde DUPLICADO si es el mismo hecho real, incluso si cambia la redacción, el país citado por error o los adjetivos.
+    - Responde NUEVO si es un evento o hecho histórico completamente diferente y nunca antes contado en la lista.
+
+    Responde ÚNICAMENTE con una sola palabra: 'DUPLICADO' o 'NUEVO'.
+    """
+
+    try:
+        verificacion = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "system", "content": "Eres un árbitro editorial estricto. Respondes únicamente DUPLICADO o NUEVO."},
+                {"role": "user", "content": prompt_juez},
+            ],
+            temperature=0.0,
+            max_completion_tokens=20,
+            extra_body={"reasoning_effort": "low"},
+        )
+        veredicto = verificacion.choices[0].message.content.strip().upper()
+        return "DUPLICADO" in veredicto
+    except Exception as e:
+        print(f"  ⚠ Advertencia en árbitro IA ({e}), continuando validación estándar...")
+        return False
+
+
+def planificar_episodio_largo(max_intentos: int = 6) -> dict:
+    client = _get_groq_client()
     historial = _cargar_historial()
-    ultimos_temas = historial[-30:] if len(historial) > 0 else []
-    historial_str = json.dumps(ultimos_temas, ensure_ascii=False, indent=2)
-    categorias_str = "\n".join(CATEGORIAS_LARGAS)
+    historial_str = "\n".join(f"- {t}" for t in historial[-35:]) if historial else "Ninguno"
+
+    indice_cat = len(historial) % len(CATEGORIAS_LARGAS)
+    cat_elegida = CATEGORIAS_LARGAS[indice_cat]
 
     prompt_plan = f"""
-    Eres el showrunner y director creativo de thrillers documentales para 'La Caja Negra' en YouTube.
-    Tu objetivo es diseñar un episodio largo (8 a 10 minutos) que atrape a la audiencia desde el primer segundo.
-    
-    El episodio debe conectar 3 CASOS REALES IMPACTANTES bajo un enigma de alta intriga.
+    Eres el showrunner y director creativo de documentales para 'La Caja Negra' en YouTube.
+    Diseña un episodio largo (8 a 10 min) conectando 3 CASOS REALES IMPACTANTES bajo un enigma de torpeza, ironía o mala suerte insólita.
 
-    PILARES TEMÁTICOS PERMITIDOS:
-    {categorias_str}
+    CATEGORÍA OBLIGATORIA PARA ESTE EPISODIO:
+    {cat_elegida}
 
-    TEMAS YA TRATADOS ANTERIORMENTE (PROHIBIDO REPETIR O DERIVAR DIRECTAMENTE DE ESTOS):
+    CASOS Y TEMAS YA TRATADOS (TOTALMENTE PROHIBIDO REPETIR O REESCRIBIR ESTOS CASOS):
     {historial_str}
 
-    REGLAS DE FORMATO:
-    1. TÍTULO: Magnético, estilo YouTube de alto CTR, misterioso y cinematográfico.
-    2. HILO CONDUCTOR: La tensión o enigma real que vincula a los tres casos.
-    3. ESTRUCTURA EXACTA DE 36 ESCENAS:
+    REGLAS DE SELECCIÓN:
+    1. TONO: Muy entretenido, ágil, curioso, irónico y directo. CERO terminología abstracta, cero aburrimiento.
+    2. TÍTULO: Magnético, estilo YouTube de alto CTR, con gancho irresistible y enfoque en lo absurdo del suceso real.
+    3. TRES CASOS: Deben ser eventos verídicos y documentados en la historia real, pero 100% nuevos e inéditos respecto al historial.
+    4. ESTRUCTURA EXACTA DE 36 ESCENAS:
        - INTRODUCCIÓN: 4 escenas (Hook frontal estilo '¿Sabías que...?', escalada y presentación de los 3 casos).
        - CASO 1: 9 escenas.
        - CASO 2: 9 escenas.
        - CASO 3: 10 escenas.
-       - EPÍLOGO: 4 escenas (Reflexión y llamado a la acción orgánico).
+       - EPÍLOGO: 4 escenas (Reflexión irónica sobre la estupidez humana y llamado a la acción orgánico).
        TOTAL = 36 escenas.
 
     Devuelve ÚNICAMENTE un JSON con esta estructura exacta:
     {{
-      "titulo": "Título de alto impacto",
-      "hilo_conductor": "Tesis o enigma central que conecta los 3 casos",
+      "titulo": "Título de alto impacto y curiosidad",
+      "hilo_conductor": "Tesis o tema central que conecta los 3 casos",
       "capitulos_meta": [
-        {{"numero": 1, "titulo_caso": "Nombre exacto del caso 1", "enfoque": "La audacia o tensión central"}},
-        {{"numero": 2, "titulo_caso": "Nombre exacto del caso 2", "enfoque": "La audacia o tensión central"}},
-        {{"numero": 3, "titulo_caso": "Nombre exacto del caso 3", "enfoque": "La audacia o tensión central"}}
+        {{"numero": 1, "titulo_caso": "Nombre histórico y descriptivo del caso 1", "enfoque": "El plan maestro y el fallo ridículo exacto"}},
+        {{"numero": 2, "titulo_caso": "Nombre histórico y descriptivo del caso 2", "enfoque": "El plan maestro y el fallo ridículo exacto"}},
+        {{"numero": 3, "titulo_caso": "Nombre histórico y descriptivo del caso 3", "enfoque": "El plan maestro y el fallo ridículo exacto"}}
       ]
     }}
     """
 
-    return _completar_con_groq(
-        messages=[
-            {"role": "system", "content": "Eres director de documentales criminales y de suspense. Devuelves únicamente JSON válido."},
-            {"role": "user", "content": prompt_plan}
-        ],
-        max_tokens=2048,
-        temp=0.4
-    )
+    for intento in range(max_intentos):
+        plan = _completar_con_groq(
+            messages=[
+                {"role": "system", "content": "Eres director de documentales virales sobre sucesos históricos insólitos. Devuelves únicamente JSON válido."},
+                {"role": "user", "content": prompt_plan}
+            ],
+            max_tokens=2048,
+            temp=0.65 + (intento * 0.05)
+        )
+
+        casos_propuestos = [c.get("titulo_caso", "").strip() for c in plan.get("capitulos_meta", [])]
+
+        hay_duplicado = False
+        for caso in casos_propuestos:
+            if es_caso_duplicado_con_ia(client, caso, historial):
+                print(f"  ⚠ El árbitro IA detectó que el caso '{caso}' ya fue tratado. Descartando propuesta...")
+                hay_duplicado = True
+                break
+
+        if not hay_duplicado and len(casos_propuestos) == 3:
+            return plan
+
+        print(f"  🔄 Regenerando propuesta de 3 casos inéditos ({intento + 1}/{max_intentos})...")
+
+    return plan
 
 
 def escribir_seccion_sincronizada(plan: dict, seccion_nombre: str, n_escenas: int, contexto_anterior: str = "") -> list[dict]:
@@ -180,20 +248,20 @@ def escribir_seccion_sincronizada(plan: dict, seccion_nombre: str, n_escenas: in
     if "INTRODUCCIÓN" in seccion_nombre:
         directriz_especial = f"""
         REGLAS OBLIGATORIAS PARA EL HOOK DE INTRODUCCIÓN (4 ESCENAS):
-        - ESCENA 1 (EL GANCHO FRONTAL): Debe iniciar OBLIGATORIAMENTE con un golpe directo de intriga usando la fórmula '¿Sabías que...' o una revelación impactante. Ejemplo: '¿Sabías que existe un documento militar que...' o '¿Sabías que en solo cuarenta segundos un error microscópico borró...'. PROHIBIDO arrancar con reflexiones filosóficas, conceptos abstractos o saludos.
-        - ESCENA 2 (LA ESCALADA DEL PELIGRO): Explica por qué este suceso desafió toda lógica o cómo los gobiernos intentaron encubrirlo. Mantén la tensión al límite.
-        - ESCENA 3 (EL MENÚ DE CASOS // QUÉ VERÁ HOY EL ESPECTADOR): Presenta de forma misteriosa y enérgica los tres casos que se analizarán en el video: {casos_str}. El espectador debe saber exactamente qué historias fascinantes va a escuchar hoy.
-        - ESCENA 4 (EL DISPARADOR): Cierre del prólogo e invitación a iniciar el primer expediente. Ejemplo: 'Bienvenidos a las sombras de la historia. Apaga la luz, ponte los auriculares... y acompáñanos al primer expediente.'
+        - ESCENA 1 (EL GANCHO FRONTAL): Inicia OBLIGATORIAMENTE con un golpe directo de intriga usando la fórmula '¿Sabías que...?' con el hecho verídico más disparatado de este documental. Cita datos reales desde la primera línea. PROHIBIDO arrancar con reflexiones poéticas o saludos.
+        - ESCENA 2 (LA ESCALADA DEL ABSURDO): Explica cómo criminales profesionales o líderes planearon durante meses un golpe perfecto y cómo todo se vino abajo por una distracción inverosímil.
+        - ESCENA 3 (EL MENÚ DE CASOS): Presenta con ritmo rápido y nombres claros los tres casos reales de hoy: {casos_str}. El espectador debe saber exactamente qué historias fascinantes va a escuchar.
+        - ESCENA 4 (EL DISPARADOR): Cierre del prólogo e invitación a iniciar el primer caso. Ejemplo: 'Ponte cómodo, porque hoy en La Caja Negra vas a ver que la realidad supera cualquier ficción absurda. Vamos con el primer expediente.'
         """
     elif "EPÍLOGO" in seccion_nombre:
         directriz_especial = """
         REGLAS DE CIERRE PARA EL EPÍLOGO:
-        - Las primeras 3 escenas cierran la tesis y reflexionan sobre la delgada línea entre el orden y el caos.
-        - La ESCENA 4 (Cierre definitivo) DEBE concluir con una frase contundente e invitar de forma natural a suscribirse a La Caja Negra y activar la campana para el próximo expediente.
+        - Las primeras 3 escenas analizan con humor negro y sarcasmo cómo el exceso de confianza y la falta de sentido común pueden arruinar millones de dólares o planes gigantescos.
+        - La ESCENA 4 (Cierre definitivo) concluye con un remate ingenioso e invita de forma natural a dejar su Like, suscribirse a La Caja Negra y activar la campana para el próximo expediente insólito.
         """
 
     prompt_guion = f"""
-    Eres el guionista principal y director de suspense para 'La Caja Negra'.
+    Eres el guionista principal y narrador de 'La Caja Negra'.
     Estás redactando la sección: "{seccion_nombre}" para el documental: "{plan['titulo']}".
     HILO CONDUCTOR: {plan['hilo_conductor']}
 
@@ -202,20 +270,37 @@ def escribir_seccion_sincronizada(plan: dict, seccion_nombre: str, n_escenas: in
 
     {directriz_especial}
 
-    REGLAS ESTRICTAS DE PRODUCCIÓN Y ESTILO:
+    REGLAS ESTRICTAS DE LOCUCIÓN (CHISME HISTÓRICO REAL, ÁGIL Y DIRECTO AL GRANO):
     1. Genera EXACTAMENTE {n_escenas} bloques secuenciales.
-    2. Cada bloque de texto debe contener entre 38 y 44 palabras en español neutro, ritmo pausado, cinematográfico y de suspenso puro (esto asegura que el video supere los 8 minutos de duración).
-    3. Cada bloque DEBE incluir un "prompt_visual_16_9" en INGLÉS optimizado para SDXL con sujetos humanos reales:
-       - PROHIBIDO fondos vacíos, pasillos solitarios o salas desiertas sin personas.
-       - DEBE mostrar personas con rostros expresivos: testigos en shock, ladrones en acción, científicos angustiados, detectives revisando pruebas o siluetas amenazantes en primer plano.
-       - Estilo visual: 'cinematic 35mm film still, intense human facial expression, chiaroscuro rim lighting, high contrast volumetric shadows, 16:9 ratio, depth of field, hyper-realistic, dark atmospheric mood, 8k'.
+    2. Cada bloque de texto debe contener entre 38 y 44 palabras en español dinámico, narrativo y entretenido.
+    3. CERO METÁFORAS Y POESÍA:
+       - PROHIBIDO usar analogías vacías ("la elegancia de un pulpo", "piscina de confeti", "zen sin café", "marioneta desarmada").
+       - PROHIBIDO inventar consecuencias falsas (cajeros que imprimen palabras extrañas, entrevistas inventadas en TV).
+       - PROHIBIDO repetir palabras de relleno como 'arrogancia', 'confeti', 'película muda' o 'tragedia cómica'.
+    4. CÓMO CONTAR LA HISTORIA:
+       - Cuenta los HECHOS REALES de forma cronológica: quiénes eran los involucrados, qué planearon, cuánto dinero u objetivo perseguían, y cuál fue el error exacto y comprobable por el que fueron descubiertos.
+       - Tono: Como un creador de contenido contándole a sus amigos una historia real tan ridícula y genial que cuesta creer que ocurrió.
+
+    REGLAS VISUALES OBLIGATORIAS (VARIEDAD CINEMATOGRÁFICA EN CÓMIC MODERNO / NOVELA GRÁFICA):
+    Cada bloque DEBE incluir un "prompt_visual_16_9" en INGLÉS optimizado para SDXL.
+
+    ¡ESTRICTAMENTE PROHIBIDO PONER CARAS DE PERSONAS EN TODAS LAS ESCENAS!
+    Debes alternar de manera equilibrada entre estos 4 tipos de encuadre:
+    1. PLANOS GENERALES Y PAISAJES (Wide angle scenes): Exteriores de bancos, calles nocturnas iluminadas, hangares, oficinas corporativas, puertos marítimos o fachadas vistas desde la distancia.
+    2. OBJETOS Y DETALLES EN PRIMER PLANO (Close-up / Still life): Maletines abiertos con dinero, herramientas de cerrajería, planos con rutas, monitores con código de error, candados rotos, contratos sellados o archivos policiales.
+    3. ACCIÓN Y SITUACIONES AMBIENTALES: Vehículos de escape doblando esquinas, siluetas corriendo bajo la lluvia, patrullas con balizas encendidas o puertas de seguridad abiertas.
+    4. PERSONAS Y REACCIONES (Solo cuando el momento clave lo requiera): Personajes estilizados con gestos claros de desconcierto, sorpresa cómica o tensión.
+
+    ESTILO ARTÍSTICO (CÓMIC MODERNO LIMPIO Y BRILLANTE):
+    - Estilo: 'Modern comic book illustration, clear black ink outlines, clean lineart, flat cel shading, graphic novel style, vibrant balanced colors, soft bright readable lighting, 16:9 aspect ratio'.
+    - PROHIBIDO: Estilos oscuros o sucios, sombras densas tipo terror, estilo Arcane y fotorrealismo.
 
     Devuelve ÚNICAMENTE un JSON con esta estructura:
     {{
       "bloques": [
         {{
-          "texto_locucion": "Párrafo en español de 38 a 44 palabras narrado con tensión y cadencia...",
-          "prompt_visual_16_9": "Cinematic 35mm film still of [detailed person with intense expression and action], dramatic chiaroscuro rim lighting, dark moody background, 16:9 frame, highly detailed"
+          "texto_locucion": "Párrafo en español de 38 a 44 palabras narrado con ritmo ágil, datos concretos y gracia...",
+          "prompt_visual_16_9": "Modern comic book illustration of [scenic wide landscape, important object close-up, action situation, or expressive character], clean ink outlines, flat cel shading, soft bright lighting, graphic novel art, 16:9 aspect ratio"
         }}
       ]
     }}
@@ -223,11 +308,11 @@ def escribir_seccion_sincronizada(plan: dict, seccion_nombre: str, n_escenas: in
 
     data = _completar_con_groq(
         messages=[
-            {"role": "system", "content": "Eres guionista cinematográfico y director de documentales de misterio. Devuelves únicamente JSON válido."},
+            {"role": "system", "content": "Eres guionista y director creativo de animación y documentales reales. Devuelves únicamente JSON válido."},
             {"role": "user", "content": prompt_guion}
         ],
         max_tokens=4096,
-        temp=0.35
+        temp=0.45
     )
 
     bloques = data.get("bloques", [])
@@ -239,11 +324,11 @@ def escribir_seccion_sincronizada(plan: dict, seccion_nombre: str, n_escenas: in
 def generar_documental_completo():
     print("====================================================")
     print(" 🎬 CAJANEGRA THRILLER GENERATOR // 36 ESCENAS      ")
-    print(" (Robos, Ciberataques, Criptografía, Supervivencia) ")
+    print(" (Crímenes Absurdos, Robos Cómicos y Animación 2D) ")
     print("====================================================")
 
     # 1. Planificación
-    print("\n[1/3] 🧠 Conceptualizando expediente de alto impacto...")
+    print("\n[1/3] 🧠 Conceptualizando expediente inédito con árbitro IA...")
     plan = planificar_episodio_largo()
     print(f"  • Título: {plan['titulo']}")
     print(f"  • Enigma: {plan['hilo_conductor']}")
@@ -259,7 +344,7 @@ def generar_documental_completo():
     ]
 
     # 2. Redacción
-    print("\n[2/3] ✍️ Redactando guion de suspense sincronizado 1:1 con escenas...")
+    print("\n[2/3] ✍️ Redactando guion ágil con datos reales sincronizado 1:1 con escenas...")
     guion_estructurado = []
     prompts_visuales = []
     contexto_acumulado = ""

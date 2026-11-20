@@ -54,10 +54,6 @@ def _formatear_tiempo_srt(segundos: float) -> str:
 
 
 def generar_subtitulos_sincronizados_por_escena(guion_estructurado: list, duraciones: list[float], ruta_salida_srt: Path):
-    """
-    Genera subtítulos dinámicos de 3 a 5 palabras calculando el tiempo 
-    relativo dentro de cada escena individual para evitar desfases acumulados.
-    """
     entradas_srt = []
     tiempo_acumulado = 0.0
     indice_srt = 1
@@ -150,7 +146,7 @@ def ensamblar_documental(carpeta_expediente: Path):
     duracion_total = _obtener_duracion_audio(ruta_audio)
     total_imagenes = len(imagenes)
 
-    # 1. Cargar duraciones medidas exactamente en la producción de TTS
+    # 1. Cargar mapa de tiempos
     ruta_tiempos = carpeta_expediente / "tiempos_sincronizados.json"
     if ruta_tiempos.exists():
         try:
@@ -174,7 +170,7 @@ def ensamblar_documental(carpeta_expediente: Path):
     guion = datos_doc.get("guion_estructurado", [])
     generar_subtitulos_sincronizados_por_escena(guion, tiempos, ruta_srt)
 
-    # 3. Renderizar videoclips con Ken Burns suave
+    # 3. Renderizar videoclips
     carpeta_clips_temp = carpeta_expediente / "temp_clips"
     if carpeta_clips_temp.exists():
         shutil.rmtree(carpeta_clips_temp)
@@ -189,32 +185,32 @@ def ensamblar_documental(carpeta_expediente: Path):
 
             print(f"  • Toma suave {idx}/{total_imagenes} ({dur_clip:.1f}s)...")
             _renderizar_clip_ken_burns(img, dur_clip, clip_path, idx)
-            f_concat.write(f"file '{clip_path.as_posix()}'\n")
+            # Ruta relativa al directorio de la carpeta
+            f_concat.write(f"file 'temp_clips/clip_{idx}.mp4'\n")
 
     # 4. Enlace final de video, subtítulos flotantes y audio
     dir_salida_videos = BASE_DIR / "outputs" / "videos"
     dir_salida_videos.mkdir(parents=True, exist_ok=True)
-    video_final = dir_salida_videos / f"{carpeta_expediente.name}.mp4"
+    video_final = (dir_salida_videos / f"{carpeta_expediente.name}.mp4").resolve()
 
-    srt_escaped = str(ruta_srt).replace("\\", "/").replace(":", "\\:")
-
+    # Filtro con nombre de archivo relativo local 'subtitulos.srt'
     filtro_subtitulos = (
-        f"subtitles='{srt_escaped}':force_style='Fontname=Impact,Fontsize=18,Bold=1,"
-        f"PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,"
-        f"Shadow=1,Alignment=2,MarginV=42'"
+        "subtitles=subtitulos.srt:force_style='Fontname=Impact,Fontsize=26,Bold=1,"
+        "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=4,"
+        "Shadow=2,Alignment=2,MarginV=48'"
     )
 
     print("\n[3/3] 🚀 Ensamblando master final en alta definición...")
 
     comando = [
         "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", str(archivo_concat),
-        "-i", str(ruta_audio),
+        "-f", "concat", "-safe", "0", "-i", "clips_concat.txt",
+        "-i", "locucion_completa.mp3",
     ]
 
     if fondo_musica.exists():
         comando.extend([
-            "-stream_loop", "-1", "-i", str(fondo_musica),
+            "-stream_loop", "-1", "-i", str(fondo_musica.resolve()),
             "-filter_complex",
             f"[0:v]{filtro_subtitulos}[v];[2:a]volume=0.08[bg];[1:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]",
             "-map", "[v]",
@@ -239,10 +235,15 @@ def ensamblar_documental(carpeta_expediente: Path):
     ])
 
     try:
-        subprocess.run(comando, check=True)
+        # Se ejecuta con cwd=carpeta_expediente para que FFmpeg encuentre subtitulos.srt sin rutas de Windows complejas
+        subprocess.run(comando, cwd=str(carpeta_expediente), check=True)
         print(f"\n✔ Video exportado con éxito en:\n📁 {video_final}")
+        
+        if carpeta_clips_temp.exists():
+            shutil.rmtree(carpeta_clips_temp, ignore_errors=True)
     except subprocess.CalledProcessError as e:
         print(f"❌ Error durante el ensamblado: {e}")
+        raise e
     finally:
         if archivo_concat.exists():
             archivo_concat.unlink(missing_ok=True)

@@ -1,6 +1,7 @@
 """
 Módulo de producción de audio (TTS Edge) e imágenes sincronizadas (ComfyUI)
 para documentales largos con estructura 1:1 de 36 escenas panorámicas 16:9.
+Estilo visual: Animación 2D estilizada / Novela gráfica y cómic oscuro.
 Canal: La Caja Negra
 """
 import os
@@ -40,6 +41,20 @@ COMFYUI_WIDTH = 1344
 COMFYUI_HEIGHT = 768
 COMFYUI_OUTPUT_DIR = Path(os.getenv("COMFYUI_OUTPUT_DIR", str(BASE_DIR / "outputs" / "comfyui"))).expanduser().resolve()
 
+# Modificadores de estilo consistentes para SDXL
+# Modificadores para estilo Cómic Limpio / Novela Gráfica Iluminada
+STYLE_SUFFIX = (
+    ", modern comic book illustration, clear ink outlines, clean lineart, "
+    "graphic novel art style, flat cel shading, vibrant soft colors, "
+    "bright atmospheric lighting, detailed background, European comic aesthetic, 16:9 ratio"
+)
+
+NEGATIVE_PROMPT_CARTOON = (
+    "dark, gritty, grim, heavy shadows, arcane style, 3d render, CGI, realism, photorealistic, "
+    "real life photo, 35mm photograph, DSLR, blurry, deformed face, bad hands, missing fingers, "
+    "extra fingers, text, watermark, signature, borders, split frame"
+)
+
 
 def _obtener_ultimo_expediente_json() -> Path:
     directorio = BASE_DIR / "outputs" / "documentales_largos"
@@ -75,7 +90,7 @@ def _crear_workflow_comfy_16_9(prompt: str, negative_prompt: str, seed: int, pre
             "inputs": {
                 "seed": seed,
                 "steps": 28,
-                "cfg": 6.0,
+                "cfg": 6.5,
                 "sampler_name": "dpmpp_2m",
                 "scheduler": "karras",
                 "denoise": 1.0,
@@ -91,14 +106,11 @@ def _crear_workflow_comfy_16_9(prompt: str, negative_prompt: str, seed: int, pre
 
 
 def renderizar_en_comfyui(prompt: str, ruta_salida: Path):
-    negative_prompt = (
-        "nsfw, nude, cleavage, distorted face, bad hands, missing fingers, extra fingers, malformed limbs, "
-        "blurry, low quality, anime, 3d cartoon, text, watermark, signature, borders, split frame"
-    )
+    prompt_con_estilo = f"{prompt.rstrip(' ,.')}{STYLE_SUFFIX}"
 
     workflow = _crear_workflow_comfy_16_9(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
+        prompt=prompt_con_estilo,
+        negative_prompt=NEGATIVE_PROMPT_CARTOON,
         seed=secrets.randbelow(2**32 - 1),
         prefijo=f"CajaNegra_16_9_{ruta_salida.stem}",
     )
@@ -134,7 +146,6 @@ def renderizar_en_comfyui(prompt: str, ruta_salida: Path):
     if imagen_info is None:
         raise TimeoutError("ComfyUI tardó demasiado en responder.")
 
-    # Descargar la imagen resultante
     img_resp = requests.get(
         f"{COMFYUI_URL}/view",
         params={
@@ -149,7 +160,6 @@ def renderizar_en_comfyui(prompt: str, ruta_salida: Path):
     with Image.open(BytesIO(img_resp.content)) as im:
         im.convert("RGB").save(ruta_salida, format="JPEG", quality=95)
 
-    # Limpiar archivo PNG temporal en ComfyUI si aplica
     nombre_png = Path(imagen_info["filename"])
     subc = Path(imagen_info.get("subfolder", ""))
     ruta_png = (COMFYUI_OUTPUT_DIR / subc / nombre_png).resolve()
@@ -196,7 +206,6 @@ def producir_locucion_sincronizada(guion_estructurado: list, carpeta_salida: Pat
         duraciones_escenas.append(dur)
         rutas_clips.append(ruta_clip)
 
-    # Master concatenado
     archivo_concat_audio = carpeta_salida / "concat_audio.txt"
     with open(archivo_concat_audio, "w", encoding="utf-8") as f:
         for r in rutas_clips:
@@ -224,7 +233,7 @@ def producir_imagenes_comfyui(guion_estructurado: list, carpeta_salida: Path):
     carpeta_img = carpeta_salida / "imagenes_16_9"
     carpeta_img.mkdir(parents=True, exist_ok=True)
 
-    print("\n[2/3] 🎨 Renderizando 36 imágenes reales en ComfyUI (16:9 SDXL)...")
+    print("\n[2/3] 🎨 Renderizando 36 ilustraciones animadas en ComfyUI (16:9 SDXL)...")
     total_escenas = len(guion_estructurado)
 
     for idx, bloque in enumerate(guion_estructurado, start=1):
@@ -235,7 +244,7 @@ def producir_imagenes_comfyui(guion_estructurado: list, carpeta_salida: Path):
             continue
 
         prompt = bloque["prompt_visual"]
-        print(f"  • [ComfyUI] Renderizando escena {idx}/{total_escenas}...")
+        print(f"  • [ComfyUI] Renderizando escena animada {idx}/{total_escenas}...")
         renderizar_en_comfyui(prompt, ruta_img)
 
 
@@ -245,11 +254,12 @@ def producir_miniatura_base(titulo: str, carpeta_salida: Path):
         print("  • Miniatura base ya existe en disco.")
         return
 
-    print("\n[3/3] 🖼️ Generando arte base para miniatura de YouTube (16:9)...")
+    print("\n[3/3] 🖼️ Generando arte animado para miniatura de YouTube (16:9)...")
     prompt_miniatura = (
-        f"Cinematic dramatic thumbnail art for a dark documentary titled '{titulo}', "
-        "hyperrealistic, highly detailed, atmospheric volumetric lighting, high contrast, "
-        "shocking, mysterious, clean composition without text, 8k resolution, 16:9 frame"
+        f"Modern comic book cover art for story titled '{titulo}', "
+        "expressive character with clear reaction, clean ink outlines, "
+        "vibrant warm colors, soft natural lighting, graphic novel illustration, "
+        "clean composition without text, 16:9 aspect ratio"
     )
     renderizar_en_comfyui(prompt_miniatura, ruta_miniatura)
     print(f"✔ Miniatura base guardada en:\n  📁 {ruta_miniatura}")
@@ -270,10 +280,10 @@ def ejecutar_produccion():
 
     guion = datos["guion_estructurado"]
 
-    # 1. Locución y medición precisa
+    # 1. Locución
     _, duraciones = producir_locucion_sincronizada(guion, carpeta_produccion)
 
-    # Guardar mapa de tiempos exactos
+    # Guardar mapa de tiempos
     mapa_tiempos = carpeta_produccion / "tiempos_sincronizados.json"
     mapa_tiempos.write_text(json.dumps(duraciones, indent=2), encoding="utf-8")
 
