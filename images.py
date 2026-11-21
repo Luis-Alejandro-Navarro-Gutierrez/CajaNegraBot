@@ -228,7 +228,7 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     output_dir = BASE_DIR / "outputs" / "images"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Analizando guion con Groq para ilustrar la curiosidad en {total_escenas} escenas...")
+    print(f"Analizando guion con Groq para ilustrar la curiosidad en {total_escenas} escenas con variedad cinematográfica...")
 
     fragmentos_guion = _segmentar_narracion(guion_completo, total_escenas)
     fragmentos_formateados = "\n".join(
@@ -237,32 +237,37 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     )
 
     estilo_comic = (
-        "colorful 2D editorial comic cartoon, lively illustration, expressive faces, "
-        "accurate standard anatomy, bold clean ink outlines, smooth cel shading, "
-        "bright natural colors, exactly one dominant recognizable main subject, clear simple physical action, "
-        "simple setting appropriate to the era, full-frame vertical illustration"
+        "Modern comic book illustration, vibrant balanced colors, clear black ink outlines, "
+        "clean lineart, smooth flat cel shading, soft bright readable lighting, "
+        "clear physical action, simple setting appropriate to the era, full-frame vertical 9:16 illustration"
     )
 
     prompt_analisis = f"""
-    You create accurate visual prompts for a short, factual curiosity comic. The narration is in Spanish and covers history, science, nature, technology, or real events. Return exactly {total_escenas} image prompts, one for each fixed scene excerpt below, in the same order.
+    You create accurate visual storyboard prompts for a factual curiosity comic short.
+    The narration is in Spanish. Return exactly {total_escenas} image prompts, one for each fixed scene excerpt below, in the exact same order.
+    
     Full story context:
     {guion_completo}
 
     FIXED SCENE EXCERPTS — do not rewrite, merge, skip, reorder, or repeat them:
     {fragmentos_formateados}
 
-    RULES FOR EACH NUMBERED PROMPT (STRICT):
-    - Choose EXACTLY ONE primary subject: either ONE human, ONE animal, or ONE object.
-    - ANTI-FUSION / ANTI-MUTATION RULE: If the scene mentions an animal or creature (e.g. shark, mantis shrimp, insect, dog), illustrate ONLY that creature in its natural environment. NEVER draw an animal wearing human clothes, lab coats, or having human hands. NEVER draw an anthropomorphic creature or hybrid chimera.
-    - If illustrating a scientist, researcher, or person, show a regular human looking at an aquarium, screen, or workbench. The animal must be separate (e.g. inside a glass tank) or not in the shot.
-    - ANATOMY & POSE RULE: Specify the exact position of both arms and hands (e.g., "both hands resting on the desk", "holding a notebook with both hands"). Never describe partial, floating, or ambiguous limbs. For animals (like sharks or fish), show the entire creature fully underwater or cleanly in motion, never split across reflection waterlines that duplicate fins or tails.
-    - CLOTHING RULE: For any human, specify modest, casual, everyday attire covering their body (e.g. "wearing a lab coat over a blue shirt", "wearing a jacket and trousers"). Never describe bathroom mirrors or bedroom selfies.
-    - Specify camera shot (close-up, medium shot, wide shot), 1 clear setting, 2–3 natural colors, and lighting.
-    - No text, labels, captions, bubbles, split screens, collages, or floating diagrams in the image.
-    - Write 40–55 clear, concrete words per prompt.
+    MANDATORY CINEMATIC SHOT DISTRIBUTION (AVOID ENDLESS HUMAN FACES):
+    You MUST alternate the camera focus across the 12 scenes following this exact framework:
+    - SCENES 1, 5, 9 (OBJECT CLOSE-UPS / STILL LIFE): Focus exclusively on meaningful objects, instruments, or tech (e.g., smoking coffee cup on a circuit board, open briefcase with documents, red warning screen, locked door, blueprints, cut cables). NO human faces.
+    - SCENES 2, 6, 10 (WIDE SHOTS / LANDSCAPES): Wide exterior or interior environments (e.g., imposing government buildings, busy city avenues at dusk, dimly lit server room aisles, quiet roads, satellite dish field). NO human faces.
+    - SCENES 3, 7, 11 (ACTION / SITUATION): Dynamic moments or environmental drama (e.g., vehicles speeding away, shadows running along a wall, smoke escaping a server vent, flashing red emergency lights).
+    - SCENES 4, 8, 12 (CHARACTERS / REACTIONS): ONLY in these three scenes can you illustrate a specific person or character, showing clear expressive facial reactions (shock, nervousness, irony, or perplexity).
 
-    Return ONLY valid JSON with exactly {total_escenas} prompts in the original order:
-    {{"prompts":[{{"prompt_visual":"literal visual description for scene 1"}}]}}
+    RULES FOR EACH NUMBERED PROMPT (STRICT):
+    - Choose EXACTLY ONE primary subject: either ONE object, ONE environment, or ONE character (only in allowed reaction scenes).
+    - ANTI-FUSION / ANTI-MUTATION: NEVER draw anthropomorphic creatures, animal-human hybrids, or extra limbs.
+    - POSE & PROPORTIONS: Specify exact positions (e.g., "both hands resting on the control desk"). Never describe floating or ambiguous limbs.
+    - NO text, subtitles, speech bubbles, watermarks, comic panels, or collage frames in the image.
+    - Write 35–45 clear, concrete descriptive words in English per prompt.
+
+    Return ONLY valid JSON with exactly {total_escenas} prompts:
+    {{"prompts":[{{"prompt_visual":"literal visual description for scene"}}]}}
     """
     try:
         completion = client.chat.completions.create(
@@ -270,7 +275,7 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a professional comic storyboard director. You produce clear, anatomically sound, concrete scene descriptions without metaphors or hybrid monsters. Output only valid JSON.",
+                    "content": "You are a professional comic storyboard director. You enforce strict camera variety and avoid repetitive portraits. Output only valid JSON.",
                 },
                 {"role": "user", "content": prompt_analisis},
             ],
@@ -324,7 +329,7 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
         "mutant, chimera, chimeric fusion, anthropomorphic insect, animal human hybrid, insect head on human body, "
         "extra arms, third arm, extra hands, extra legs, extra limbs, extra fins, duplicate tails, dorsal fin duplicate, "
         "fused limbs, deformed anatomy, distorted face, bad hands, missing fingers, extra fingers, malformed body, "
-        "photorealistic, 3d render, anime, manga, monochrome, sketch, comic panels, collage, split screen, text, watermark, logo"
+        "photorealistic, 3d render, anime, manga, dark shadows, gritty horror, monochrome, sketch, comic panels, collage, split screen, text, watermark, logo"
     )
 
     prompts_dir = BASE_DIR / "outputs" / "prompts"

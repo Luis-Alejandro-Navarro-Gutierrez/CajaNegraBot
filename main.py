@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
@@ -30,47 +31,84 @@ from video import montar_video_final
 from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
 
-# 5 Pilares Temáticos Principales
+# ========================================================
+# BANCO DE DISPARADORES HISTÓRICOS Y MODERNOS (SIGLOS XIX, XX Y XXI)
+# ========================================================
+ANGULOS_DISPARADORES = [
+    # Época moderna y Siglo XXI
+    "un delito o estafa millonaria con criptomonedas, NFTs o billeteras digitales arruinado por perder la clave o alardear en redes",
+    "un criminal o ladrón moderno del siglo XXI delatado por el GPS de su celular, un reloj inteligente o una aspiradora robot",
+    "un fraude corporativo reciente o robo informático en una startup tecnológica descubierto por una negligencia insólita",
+    "un robo o asalto moderno frustrado porque el atacante no supo usar la tecnología (sensores biométricos, cerraduras electrónicas)",
+    "un intento de hackeo, filtración o ciberataque reciente donde el atacante usó redes Wi-Fi públicas o cometió un descuido doméstico",
+    "un creador de contenido, falso influencer o estafador digital moderno cuya mentira colapsó en vivo o por un descuido en un post",
+    
+    # Siglo XX e hitos históricos
+    "un caso judicial o policial insólito ocurrido en Europa Occidental, Asia o Latinoamérica",
+    "un suceso de espionaje o misión encubierta en la Guerra Fría arruinado por un malentendido ridículo",
+    "un atraco a transportes blindados, trenes, barcos o aduanas con un plan maestro que falló en los últimos metros",
+    "un error garrafal de falsificadores de arte, documentos o dinero que pasaron por alto un detalle infantil",
+    "un intento de fuga de prisión de alta seguridad frustrado por un imprevisto doméstico o torpeza física",
+    "un descubrimiento científico, médico o tecnológico accidental nacido de un error de laboratorio con final millonario",
+    "un conflicto diplomático o movilización militar gigantesca desatada por comida, animales o motivos triviales"
+]
+
+# 7 Pilares Temáticos Reestructurados
 CATEGORIAS = [
     {
         "id": "asesinatos_venganzas_fallidas",
-        "nombre": "ASESINATOS Y VENGANZAS QUE SALIERON RIDÍCULAMENTE MAL",
+        "nombre": "PLANES MACABROS Y VENGANZAS QUE SALIERON RIDÍCULAMENTE MAL",
         "descripcion": (
-            "Criminales o conspiradores cuyos planes macabros terminaron en una comedia de enredos real, "
-            "autotrampas grotescas o blancos que resultaron indestructibles (como Michael Malloy o sicarios que se hicieron amigos de su objetivo). "
-            "Enfoque directo al absurdo, sin terminología forense densa."
+            "Criminales o conspiradores cuyos planes terminaron en comedia de enredos, autotrampas involuntarias, "
+            "o blancos que resultaron imposibles de vencer por pura suerte o torpeza del atacante."
         ),
     },
     {
         "id": "robos_arruinados_estupidez",
-        "nombre": "ROBOS MILLONARIOS ARRUINADOS POR ESTUPIDECES",
+        "nombre": "ROBOS MILLONARIOS ARRUINADOS POR DETALLES ABSURDOS",
         "descripcion": (
-            "Golpes a bancos, joyerías o transporte de valores donde burlaron alarmas avanzadas, "
-            "pero fueron atrapados por descuidos ridículos (dejar recibos con su nombre, puertas que decían jale, o pagar con billetes seriados)."
+            "Asaltos a bancos, joyerías, museos, trenes o transporte blindado donde se burló la alta seguridad, "
+            "pero los ladrones fueron atrapados por descuidos ridículos de sentido común o pistas tontas."
         ),
     },
     {
         "id": "hackeos_crimenes_digitales",
-        "nombre": "HACKEOS Y CRÍMENES DIGITALES INSÓLITOS",
+        "nombre": "HACKEOS, FRAUDES Y CRÍMENES TECNOLÓGICOS INSÓLITOS",
         "descripcion": (
-            "Ataques informáticos millonarios y asaltos cibernéticos contados con lenguaje cotidiano. "
-            "Robos frustrados por faltas ortográficas (banco de Bangladesh), reclusos que hackearon prisiones desde una sala común o fallos técnicos insólitos."
+            "Golpes cibernéticos y estafas informáticas desbaratadas por fallos ortográficos, contraseñas ridículas, "
+            "descuidos domésticos de los hackers o registros de red insólitos."
         ),
     },
     {
         "id": "errores_anomalias_monumentales",
         "nombre": "ERRORES TONTOS Y ANOMALÍAS CON EFECTOS MONUMENTALES",
         "descripcion": (
-            "Sustancias de consumo global (como el origen accidental del Viagra en ensayos cardíacos), inventos nacidos de descuidos de laboratorio "
-            "y accidentes científicos que crearon industrias multimillonarias por pura suerte."
+            "Descuidos de laboratorio, fallos de traducción o accidentes de diseño que cambiaron la historia, "
+            "crearon imperios comerciales o salvaron vidas de forma completamente imprevista."
         ),
     },
     {
         "id": "conflictos_leyes_absurdas",
-        "nombre": "GUERRAS, LEYES Y CONFLICTOS POR MOTIVOS ABSURDOS",
+        "nombre": "CONFLICTOS BÉLICOS, CRISIS Y LEYES POR MOTIVOS ABSURDOS",
         "descripcion": (
-            "Conflictos bélicos y movilizaciones militares desatadas por animales o comida (la Guerra del Cerdo, la Guerra de los Pasteles), "
-            "o litigios y normas legales tan disparatadas que parecen ficción pero ocurrieron de verdad."
+            "Movilizaciones militares, disputas diplomáticas o normas legales desmedidas desatadas por comida, "
+            "animales, discusiones menores o incidentes territoriales ridículos."
+        ),
+    },
+    {
+        "id": "impostores_farsantes_alta_sociedad",
+        "nombre": "IMPOSTORES Y FALSOS NOBLES QUE ENGAÑARON AL MUNDO",
+        "descripcion": (
+            "Sujetos sin un centavo que fingieron ser médicos, diplomáticos, aristócratas o generales, viviendo con lujos "
+            "hasta que un detalle trivial o un encuentro fortuito reveló toda la farsa."
+        ),
+    },
+    {
+        "id": "fugas_prision_ridiculas",
+        "nombre": "FUGAS DE PRISIÓN MILIMÉTRICAS QUE SE DERRUMBARON AL FINAL",
+        "descripcion": (
+            "Reclusos que planearon fugas ingeniosas y complejas por meses, pero terminaron atrapados en la puerta de salida "
+            "por detalles absurdos como quedar atascados, tomar el transporte equivocado o festejar antes de tiempo."
         ),
     },
 ]
@@ -103,7 +141,7 @@ def _guardar_datos_historial(temas: list[str], indice_categoria: int) -> None:
 
 
 def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas: list[str]) -> bool:
-    """Árbitro IA estricto: determina si la propuesta repite un hecho o historia del historial."""
+    """Árbitro IA estricto: evalúa contra el 100% del historial sin recortes."""
     if not historial_temas:
         return False
 
@@ -112,20 +150,22 @@ def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas
         if candidato_limpio == t.strip().lower():
             return True
 
+    # SE EVALÚA TODO EL HISTORIAL COMPLETO
     temas_referencia = "\n".join(f"- {t}" for t in historial_temas)
 
     prompt_juez = f"""
-    Evalúa si la siguiente propuesta de video trata sobre EL MISMO evento, hecho o historia real que cualquiera de los casos en el historial.
+    Eres un árbitro editorial y verificador estricto para 'La Caja Negra'.
+    Determina si la propuesta relata EL MISMO evento, hecho real o historia histórica/moderna que cualquiera de los casos ya tratados.
 
     PROPUESTA A EVALUAR:
     "{nuevo_candidato}"
 
-    HISTORIAL DE TEMAS YA TRATADOS:
+    HISTORIAL COMPLETO DE CASOS YA TRATADOS:
     {temas_referencia}
 
-    Criterios:
-    - Responde DUPLICADO si es la misma historia (aunque cambien las palabras o el título).
-    - Responde NUEVO si es un evento o historia diferente.
+    CRITERIOS DE DESCARTE:
+    - Responde DUPLICADO si es la misma historia real (incluso si cambia el título, los nombres de los adjetivos o el enfoque).
+    - Responde NUEVO si es un hecho, protagonista o evento completamente diferente que nunca antes ha sido tratado en el historial.
 
     Responde ÚNICAMENTE con una sola palabra: 'DUPLICADO' o 'NUEVO'.
     """
@@ -138,7 +178,7 @@ def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas
                 {"role": "user", "content": prompt_juez},
             ],
             temperature=0.0,
-            max_completion_tokens=250,
+            max_completion_tokens=20,
             extra_body={"reasoning_effort": "low"},
         )
         veredicto = verificacion.choices[0].message.content.strip().upper()
@@ -149,7 +189,7 @@ def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas
 
 
 def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
-    """Consulta a Groq rotando ordenadamente y validando mediante IA contextual contra el historial."""
+    """Consulta a Groq rotando ordenadamente y usando disparadores dinámicos contra TODO el historial."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GROQ_API_KEY no encontrada en el archivo .env.")
@@ -162,30 +202,37 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
     categoria = CATEGORIAS[nuevo_indice]
 
     print(f"🔄 Rotación temática [{nuevo_indice + 1}/{len(CATEGORIAS)}]: {categoria['nombre']}")
+    print(f"📚 Verificando contra {len(temas_previos)} casos históricos registrados (100% del historial)...")
 
+    # TODO EL HISTORIAL COMPLETO
     lista_historial_prompt = "\n".join(f"- {t}" for t in temas_previos) if temas_previos else "Ninguno"
-
-    prompt_generador = f"""
-    Actúa como productor de contenido viral enfocado en crímenes absurdos, hackeos y misterios reales insólitos.
-    Tu objetivo es proponer UN caso real, específico y comprobado que genere curiosidad morbosa y asombro ("¿En serio ocurrió esto?").
-
-    CATEGORÍA OBLIGATORIA:
-    {categoria['nombre']}
-    Descripción: {categoria['descripcion']}
-
-    REGLAS DE SELECCIÓN:
-    - El caso debe ser 100% verídico y comprobable.
-    - Debe resaltar la torpeza, la ironía, el error tonto o la audacia del hecho.
-    - Cero lenguaje académico denso; debe ser llamativo de inmediato.
-    - EL TEMA DEBE SER COMPLETAMENTE INÉDITO Y NO FIGURAR EN ESTE HISTORIAL:
-    {lista_historial_prompt}
-
-    Devuelve ÚNICAMENTE el nombre descriptivo y con gancho del caso (ejemplos: 'El robo millonario arruinado por una caja de pizza', 'El sicario que terminó viviendo con la esposa de su víctima', 'El hackeo detenido por una falta de ortografía').
-    Sin comillas, sin introducciones ni explicaciones.
-    """
 
     tema_candidato_final = ""
     for intento in range(max_intentos):
+        angulo_elegido = random.choice(ANGULOS_DISPARADORES)
+
+        prompt_generador = f"""
+        Actúa como investigador y productor de historias virales para el canal 'La Caja Negra'.
+        Tu misión es proponer UN caso real, específico y comprobado que despierte asombro inmediato ("¿Cómo pudieron hacer semejante tontería?").
+
+        CATEGORÍA OBLIGATORIA:
+        {categoria['nombre']}
+        Contexto: {categoria['descripcion']}
+
+        ENFOQUE ESPECÍFICO REQUERIDO:
+        Busca un caso verídico relacionado con: {angulo_elegido}.
+
+        REGLAS DE SELECCIÓN:
+        1. El caso debe ser 100% REAL y documentado (con personas, lugares y hechos comprobables). Tanto casos del siglo XXI como históricos son válidos.
+        2. Evita los casos más trillados de internet (ej. el robo de Amberes, la pizza bomba, el typo de Bangladesh, Michael Malloy). Ve por sucesos increíbles pero poco explotados.
+        3. Resalta la ironía o la torpeza: qué planearon y la estupidez exacta por la que todo se fue al traste.
+        4. ESTRICTAMENTE PROHIBIDO REPETIR O PARAFRASEAR CUALQUIERA DE ESTOS CASOS YA TRATADOS:
+        {lista_historial_prompt}
+
+        Devuelve ÚNICAMENTE un título corto, directo y con gancho magnético (estilo YouTube / TikTok).
+        Sin comillas, sin introducciones ni notas.
+        """
+
         completion = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
@@ -195,8 +242,8 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
                 },
                 {"role": "user", "content": prompt_generador},
             ],
-            temperature=0.8,
-            max_completion_tokens=400,
+            temperature=0.8 + (intento * 0.04),
+            max_completion_tokens=150,
             extra_body={"reasoning_effort": "low"},
         )
 
@@ -212,10 +259,10 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
         if not es_duplicado:
             return tema_candidato, nuevo_indice
 
-        print(f"⚠️ El árbitro IA detectó que '{tema_candidato}' ya fue tratado en el historial. Reintentando ({intento + 1}/{max_intentos})...")
+        print(f"⚠️ El árbitro IA detectó que '{tema_candidato}' ya existe en el historial completo. Explorando otro ángulo ({intento + 1}/{max_intentos})...")
         tema_candidato_final = tema_candidato
 
-    return (tema_candidato_final if tema_candidato_final else "Robo Insólito del Siglo"), nuevo_indice
+    return (tema_candidato_final if tema_candidato_final else "El robo arruinado por una alarma Bluetooth"), nuevo_indice
 
 
 def registrar_tema_en_historial(tema: str, indice_categoria: int) -> None:
@@ -246,13 +293,13 @@ def main() -> int:
     print("====================================================")
 
     # 1. Obtener tema
-    print("\n[1/8] Consultando un nuevo tema inédito a Groq...")
+    print("\n[1/8] Consultando un nuevo tema inédito con disparadores dinámicos...")
     tema, indice_cat = obtener_tema_automatico()
     print(f'🎯 Tema seleccionado: "{tema}"')
 
-    # 2. Generar Guiones (ES calibrado a 210-230 palabras para superar el minuto)
+    # 2. Generar Guiones (Calibrados en generator.py a 180-205 palabras para durar 1:10 - 1:20 min)
     print("\n[2/8] Generando y adaptando guiones con Groq...")
-    resultado_guion_es = generar_guion(tema, minimo=210, maximo=230)
+    resultado_guion_es = generar_guion(tema, minimo=180, maximo=205)
     resultado_guion_en = traducir_guion_a_ingles(resultado_guion_es)
 
     # Extraer datos ES
@@ -274,7 +321,7 @@ def main() -> int:
     print(f"✔ Script [EN]: {titulo_en}")
 
     # 3. Imágenes SDXL
-    print("\n[3/8] Diseñando prompts visuales y renderizando 12 escenas compartidas en SDXL...")
+    print("\n[3/8] Diseñando prompts visuales con esquema 3-3-3-3 y renderizando 12 escenas...")
     generar_secuencia_imagenes(narracion_visual, titulo_es, nombre_base=nombre_raiz, total_escenas=12)
     print("✔ Secuencia visual completada.")
 

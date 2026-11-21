@@ -1,5 +1,6 @@
 """Módulo para generar y traducir guiones estructurados con Groq (ES / EN).
 Optimizado para openai/gpt-oss-120b con reasoning controlado para evitar respuestas vacías.
+Calibrado para videos verticales de 1:10 a 1:20 min y variedad cinematográfica en cómic moderno.
 Canal: La Caja Negra / The Black Box Archives.
 """
 
@@ -65,26 +66,27 @@ def _limpiar_y_parsear_json(texto: str) -> dict:
     return json.loads(texto_limpio)
 
 
-def generar_guion(tema: str, minimo: int = 210, maximo: int = 230) -> dict:
+def generar_guion(tema: str, minimo: int = 180, maximo: int = 205) -> dict:
     """Genera un guion entretenido, con malicia, directo y sin tecnicismos pesados.
-    Calibrado a 210-230 palabras para superar el minuto de locución (TikTok/Facebook/Shorts)."""
+    Calibrado a 180-205 palabras para lograr entre 1:10 y 1:20 minutos de locución real."""
     client = _get_groq_client()
 
     prompt = f"""
-    Escribe un guion en español para video vertical corto sobre este caso real: "{tema}".
+    Escribe un guion en español para un video vertical sobre este caso real: "{tema}".
     
     TONO Y ESTILO:
-- Habla como si le estuvieras contando a un amigo en una cafetería el chisme, crimen o accidente más absurdo e insólito que jamás ha escuchado.
-- CERO tecnicismos aburridos, cero explicaciones médicas densas y cero lenguaje académico seco. Usa palabras directas, cotidianas y atractivas.
-- Resalta la ironía, la torpeza humana o la audacia del desenlace sin perder de vista que es un hecho 100% verídico.
+    - Habla como si le estuvieras contando a un amigo en una cafetería el chisme, crimen, robo o accidente más ridículo e insólito que jamás ha escuchado.
+    - CERO lenguaje poético, CERO metáforas abstractas ("elegancia de un pulpo", "piscina de confeti", "destino implacable").
+    - CERO tecnicismos aburridos y cero explicaciones académicas secas. Usa palabras directas, cotidianas y con ritmo rápido.
+    - Cuenta HECHOS REALES de forma cronológica: quién lo hizo, qué plan maestro tenían, y cuál fue la metida de pata exacta que arruinó todo.
     
-    REGLAS ESTRICTAS:
-1. Longitud de narración: exactamente {minimo}-{maximo} palabras totales (debe superar 1 minuto de locución continua).
-2. Comienza DIRECTO con un gancho frontal "¿Sabías que...?" que atrape con malicia o sorpresa desde el primer segundo.
-3. PROHIBIDO terminantemente usar frases como "el giro llegó", "la sorpresa fue", "el clímax" o "la moraleja". El desenlace insólito debe revelarse solo a través de la acción de los hechos.
-4. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
-5. Cero anotaciones de cámara o efectos de sonido; entrega solo el texto limpio para locución.
-6. Asegúrate de cerrar la estructura JSON completamente.
+    REGLAS ESTRICTAS DE DURACIÓN:
+    1. Longitud de narración: EXACTAMENTE entre {minimo} y {maximo} palabras totales. Esto es vital para que la locución dure entre 1:10 y 1:20 minutos. No entregues menos de {minimo} palabras.
+    2. Comienza DIRECTO con un gancho frontal "¿Sabías que...?" exponiendo el dato verídico más disparatado del caso desde la primera línea.
+    3. PROHIBIDO usar frases meta como "el giro llegó", "la sorpresa fue", "el clímax" o "la moraleja". El desenlace insólito debe entenderse solo por los hechos.
+    4. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
+    5. Cero anotaciones de cámara, corchetes o efectos de sonido; entrega solo el texto limpio para locución.
+    6. Asegúrate de cerrar la estructura JSON completamente.
 
     Responde ÚNICAMENTE un JSON válido con este formato:
     {{"guion": {{"titulo": "Título corto y con gancho irresistible", "narracion": "Texto completo de la locución"}}}}
@@ -95,7 +97,7 @@ def generar_guion(tema: str, minimo: int = 210, maximo: int = 230) -> dict:
             "role": "system",
             "content": (
                 "Eres el creador de historias virales para 'La Caja Negra'. Cuentas historias reales sobre robos insólitos, "
-                "hackeos, crímenes absurdos y accidentes históricos con un tono dinámico, entretenido, irónico y sin tecnicismos pesados. "
+                "hackeos, crímenes absurdos y accidentes históricos con un tono dinámico, entretenido, irónico y directo al grano. "
                 "Respondes únicamente con un objeto JSON válido y estrictamente cerrado."
             ),
         },
@@ -118,24 +120,24 @@ def generar_guion(tema: str, minimo: int = 210, maximo: int = 230) -> dict:
 
 
 def traducir_guion_a_ingles(guion_es: dict) -> dict:
-    """Adapta el guion al inglés manteniendo el tono dinámico, irónico y directo."""
+    """Adapta el guion al inglés manteniendo el ritmo dinámico, los hechos concretos y la misma duración."""
     client = _get_groq_client()
     datos = guion_es["guion"]
 
     prompt = f"""
-    Translate and adapt this Spanish script for 'The Black Box Archives' Shorts.
-    Keep the same engaging, ironic, shocking, and casual storytelling tone (like telling a wild true story to a friend).
-    NO heavy technical jargon, NO dry academic terms.
+    Translate and adapt this Spanish script for 'The Black Box Archives' vertical video.
+    Keep the same fast-paced, ironic, shocking, and casual storytelling tone (like sharing wild true events with friends).
+    NO poetic metaphors, NO dry academic jargon, NO fictional filler. Stick to the actual facts and the ridiculous human error.
     
     Source Title: {datos['titulo']}
     Source Script: {datos['narracion']}
     
     Rules:
-1. Hook MUST start with "Did you know that...?"
-2. Maintain exact progression, absurd real facts, and word count (~180-200 words).
-3. NO meta-narrative announcements like "the twist came", "the funny part was", or "unexpected turn".
-4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
-5. Ensure the JSON structure is strictly complete and closed.
+    1. Hook MUST start with "Did you know that...?"
+    2. Maintain exact chronological progression, absurd real facts, and a word count of 175 to 200 words (matching 1:10 to 1:20 duration).
+    3. NO meta-narrative announcements like "the twist came", "the funny part was", or "in conclusion".
+    4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
+    5. Ensure the JSON structure is strictly complete and closed.
 
     Return ONLY valid JSON:
     {{"guion": {{"titulo": "Punchy Viral English Title", "narracion": "Narration text"}}}}
