@@ -1,9 +1,12 @@
-"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con soporte bilingüe (ES / EN) y reintentos ante fallos de conexión."""
+"""Módulo para convertir guiones en voz en off (Text-to-Speech) usando Edge-TTS con soporte bilingüe (ES / EN),
+reintentos ante fallos de conexión y captura de marcas de tiempo exactas por palabra (WordBoundary) para subtítulos.
+"""
 
 import asyncio
+import json
+import os
 import re
 import sys
-import os
 from pathlib import Path
 import edge_tts
 
@@ -66,16 +69,16 @@ def _convertir_anio_a_palabras_es(match: re.Match) -> str:
             return "mil"
         c = resto // 100
         resto_c = resto % 100
-        
+
         prefijo = f"mil {centenas[c]}" if c else "mil"
         if resto_c == 0:
             return "mil cien" if c == 1 else prefijo
-        
+
         if resto_c in especiales:
             return f"{prefijo} {especiales[resto_c]}"
         if resto_c < 10:
             return f"{prefijo} {unidades[resto_c]}"
-            
+
         dec = resto_c // 10
         uni = resto_c % 10
         texto_dec = decenas[dec]
@@ -86,29 +89,48 @@ def _convertir_anio_a_palabras_es(match: re.Match) -> str:
 
 def normalizar_texto_para_tts(texto: str, idioma: str = "es") -> str:
     """Prepara el texto para evitar pausas artificiales al leer años, siglas o signos."""
-    # Elimina puntos en años o números formateados
     texto = re.sub(r"\b([12])\.(\d{3})\b", r"\1\2", texto)
 
     if idioma == "es":
-        # Convierte años comunes (de 1000 a 2099) a texto en español fluido
         texto = re.sub(r"\b(1\d{3}|20\d{2})\b", _convertir_anio_a_palabras_es, texto)
 
-    # Limpia comillas y guiones que fuercen pausas innecesarias en ambos idiomas
     texto = texto.replace('"', '').replace('“', '').replace('”', '').replace("'", "")
     texto = re.sub(r"\s+", " ", texto).strip()
 
     return texto
 
 
-async def _generar_audio_async(texto: str, ruta_salida: Path, voz: str, idioma: str, max_intentos: int = 3) -> None:
-    """Función asíncrona interna para procesar la locución con reintentos automáticos ante timeouts de Bing."""
+async def _generar_audio_con_tiempos_async(
+    texto: str,
+    ruta_salida: Path,
+    ruta_tiempos: Path,
+    voz: str,
+    idioma: str,
+    max_intentos: int = 3
+) -> None:
+    """Genera audio MP3 y captura marcas de tiempo por palabra vía WordBoundary con reintentos."""
     texto_procesado = normalizar_texto_para_tts(texto, idioma=idioma)
-    
+
     for intento in range(1, max_intentos + 1):
         try:
-            # rate='+5%' aporta dinamismo sin distorsionar el tono
             communicate = edge_tts.Communicate(texto_procesado, voz, rate="+5%")
-            await communicate.save(str(ruta_salida))
+            palabras_tiempos = []
+
+            with open(ruta_salida, "wb") as archivo_audio:
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        archivo_audio.write(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        # offset y duration vienen en unidades de 100ns (1s = 10,000,000 unidades)
+                        offset_seg = chunk["offset"] / 10_000_000.0
+                        duracion_seg = chunk["duration"] / 10_000_000.0
+                        palabras_tiempos.append({
+                            "word": chunk["text"],
+                            "start": offset_seg,
+                            "end": offset_seg + duracion_seg
+                        })
+
+            ruta_tiempos.write_text(json.dumps(palabras_tiempos, ensure_ascii=False, indent=2), encoding="utf-8")
             return
         except Exception as e:
             if intento == max_intentos:
@@ -119,28 +141,25 @@ async def _generar_audio_async(texto: str, ruta_salida: Path, voz: str, idioma: 
 
 
 def convertir_texto_a_voz(texto_guion: str, nombre_base: str = "narracion", idioma: str = "es") -> Path:
-    """
-    Convierte el texto del guion en un archivo de audio MP3 guardado en outputs/audio/.
-    :param idioma: 'es' para español (Álvaro) o 'en' para inglés (Christopher).
-    """
+    """Convierte el texto del guion en un archivo de audio MP3 y genera su JSON de marcas de tiempo."""
     output_dir = BASE_DIR / "outputs" / "audio"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     idioma = idioma.lower().strip()
     voz = VOICE_EN if idioma == "en" else VOICE_ES
 
-    nombre_archivo = f"{Path(nombre_base).stem}.mp3"
-    ruta_salida = output_dir / nombre_archivo
+    nombre_raiz = Path(nombre_base).stem
+    ruta_salida = output_dir / f"{nombre_raiz}.mp3"
+    ruta_tiempos = output_dir / f"{nombre_raiz}_tiempos.json"
 
-    print(f"Sintetizando voz en off [{idioma.upper()}] con '{voz}'...")
-    asyncio.run(_generar_audio_async(texto_guion, ruta_salida, voz, idioma))
+    print(f"Sintetizando voz en off [{idioma.upper()}] con '{voz}' y extrayendo marcas de tiempo exactas...")
+    asyncio.run(_generar_audio_con_tiempos_async(texto_guion, ruta_salida, ruta_tiempos, voz, idioma))
 
-    print(f"✔ ¡Audio [{idioma.upper()}] generado con éxito! Guardado en: {ruta_salida}")
+    print(f"✔ Audio [{idioma.upper()}] generado: {ruta_salida.name}")
+    print(f"✔ Tiempos exactos guardados: {ruta_tiempos.name}")
     return ruta_salida
 
 
 if __name__ == "__main__":
-    # Prueba en Español
     convertir_texto_a_voz("En 1957 ocurrió un misterio en los Urales.", "prueba_es", idioma="es")
-    # Prueba en Inglés
     convertir_texto_a_voz("In 1957, a dark mystery began deep in the Ural Mountains.", "prueba_en", idioma="en")

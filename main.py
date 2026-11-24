@@ -1,195 +1,147 @@
-"""Pipeline de CajaNegraBot para producir videos documentales breves bilingües (ES / EN)."""
+"""Pipeline principal de CajaNegraBot para producción automatizada de Shorts bilingües.
+Integra rotación por dominios históricos aislados, ComfyUI, Edge-TTS con marcas 
+de tiempo nativas y quemado de subtítulos dinámicos sin desfasajes.
+"""
 
 import json
 import os
 import random
+import re
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
 import moviepy.editor as mp
 
-# ========================================================
-# DETECCIÓN DE RUTA PERSISTENTE A LA RAÍZ DEL PROYECTO (--onefile)
-# ========================================================
-if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).resolve().parent.parent
-else:
-    BASE_DIR = Path(__file__).resolve().parent
-
-os.chdir(str(BASE_DIR))
-os.environ["CAJANEGRA_ROOT"] = str(BASE_DIR)
-
-HISTORIAL_FILE = BASE_DIR / "historial_temas.json"
-load_dotenv(BASE_DIR / ".env")
-
-# Módulos del pipeline
-from generator import CIERRE_VIDEO_ES, CIERRE_VIDEO_EN, generar_guion, traducir_guion_a_ingles, guardar_guion
-from tts import convertir_texto_a_voz
+from generator import generar_guion, traducir_guion_a_ingles
 from images import generar_secuencia_imagenes
+from tts import convertir_texto_a_voz
 from video import montar_video_final
 from subtitles import agregar_subtitulos_al_video
 from metadata import generar_archivo_metadata
 
 # ========================================================
-# BANCO DE DISPARADORES HISTÓRICOS Y MODERNOS (SIGLOS XIX, XX Y XXI)
+# DETECCIÓN DE RUTA PERSISTENTE (COMPATIBLE CON .EXE)
 # ========================================================
-ANGULOS_DISPARADORES = [
-    # Época moderna y Siglo XXI
-    "un delito o estafa millonaria con criptomonedas, NFTs o billeteras digitales arruinado por perder la clave o alardear en redes",
-    "un criminal o ladrón moderno del siglo XXI delatado por el GPS de su celular, un reloj inteligente o una aspiradora robot",
-    "un fraude corporativo reciente o robo informático en una startup tecnológica descubierto por una negligencia insólita",
-    "un robo o asalto moderno frustrado porque el atacante no supo usar la tecnología (sensores biométricos, cerraduras electrónicas)",
-    "un intento de hackeo, filtración o ciberataque reciente donde el atacante usó redes Wi-Fi públicas o cometió un descuido doméstico",
-    "un creador de contenido, falso influencer o estafador digital moderno cuya mentira colapsó en vivo o por un descuido en un post",
-    
-    # Siglo XX e hitos históricos
-    "un caso judicial o policial insólito ocurrido en Europa Occidental, Asia o Latinoamérica",
-    "un suceso de espionaje o misión encubierta en la Guerra Fría arruinado por un malentendido ridículo",
-    "un atraco a transportes blindados, trenes, barcos o aduanas con un plan maestro que falló en los últimos metros",
-    "un error garrafal de falsificadores de arte, documentos o dinero que pasaron por alto un detalle infantil",
-    "un intento de fuga de prisión de alta seguridad frustrado por un imprevisto doméstico o torpeza física",
-    "un descubrimiento científico, médico o tecnológico accidental nacido de un error de laboratorio con final millonario",
-    "un conflicto diplomático o movilización militar gigantesca desatada por comida, animales o motivos triviales"
-]
+if "CAJANEGRA_ROOT" in os.environ:
+    BASE_DIR = Path(os.environ["CAJANEGRA_ROOT"])
+elif getattr(sys, "frozen", False):
+    exe_path = Path(sys.executable).resolve()
+    BASE_DIR = exe_path.parent.parent if exe_path.parent.name.lower() == "dist" else exe_path.parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
 
-# 7 Pilares Temáticos Reestructurados
-CATEGORIAS = [
+load_dotenv(BASE_DIR / ".env")
+
+ARCHIVO_HISTORIAL = BASE_DIR / "historial_temas.json"
+
+# ========================================================
+# DOMINIOS HISTÓRICOS Y CIENTÍFICOS AISLADOS (ANTI-REDUNDANCIA)
+# ========================================================
+DOMINIOS_HISTORICOS = [
     {
-        "id": "asesinatos_venganzas_fallidas",
-        "nombre": "PLANES MACABROS Y VENGANZAS QUE SALIERON RIDÍCULAMENTE MAL",
-        "descripcion": (
-            "Criminales o conspiradores cuyos planes terminaron en comedia de enredos, autotrampas involuntarias, "
-            "o blancos que resultaron imposibles de vencer por pura suerte o torpeza del atacante."
-        ),
+        "dominio": "DESASTRES DE LA NATURALEZA Y ERRORES GEOLÓGICOS",
+        "ejemplos": "lagos drenados por error minero (Lago Peigneur), lluvias de animales reales, incendios subterráneos perpetuos (Centralia), cuevas letales o árboles tóxicos",
+        "evitar": "computadoras, software, hackers, robots, circuitos, bugs informáticos"
     },
     {
-        "id": "robos_arruinados_estupidez",
-        "nombre": "ROBOS MILLONARIOS ARRUINADOS POR DETALLES ABSURDOS",
-        "descripcion": (
-            "Asaltos a bancos, joyerías, museos, trenes o transporte blindado donde se burló la alta seguridad, "
-            "pero los ladrones fueron atrapados por descuidos ridículos de sentido común o pistas tontas."
-        ),
+        "dominio": "CRIMEN INGENIOSO, ROBOS Y FARSANTES DE ALTO NIVEL",
+        "ejemplos": "el robo del banco de Niza por alcantarillas, falsificadores de arte magistrales, impostores en monarquías, fugas carcelarias surrealistas",
+        "evitar": "chips, tecnología digital moderna, programación, bugs, satélites"
     },
     {
-        "id": "hackeos_crimenes_digitales",
-        "nombre": "HACKEOS, FRAUDES Y CRÍMENES TECNOLÓGICOS INSÓLITOS",
-        "descripcion": (
-            "Golpes cibernéticos y estafas informáticas desbaratadas por fallos ortográficos, contraseñas ridículas, "
-            "descuidos domésticos de los hackers o registros de red insólitos."
-        ),
+        "dominio": "MEDICINA ARCAICA, CIRUGÍA SALVAJE Y BOTICA TÓXICA",
+        "ejemplos": "elixires victorianos con radio (Radithor), cirugías apresuradas del siglo XIX (Robert Liston), dentaduras de Waterloo, fósforo blanco",
+        "evitar": "cibernética, computadoras, internet, virus de software, robots"
     },
     {
-        "id": "errores_anomalias_monumentales",
-        "nombre": "ERRORES TONTOS Y ANOMALÍAS CON EFECTOS MONUMENTALES",
-        "descripcion": (
-            "Descuidos de laboratorio, fallos de traducción o accidentes de diseño que cambiaron la historia, "
-            "crearon imperios comerciales o salvaron vidas de forma completamente imprevista."
-        ),
+        "dominio": "ABSURDOS BÉLICOS, EXPEDICIONES Y DIPLOMACIA DISPARATADA",
+        "ejemplos": "la guerra del perro de 1925, barcos camuflados de islas tropicales, expediciones al Ártico con ropa inadecuada, tratados olvidados",
+        "evitar": "código informático, programación, bugs, Silicon Valley, robots"
     },
     {
-        "id": "conflictos_leyes_absurdas",
-        "nombre": "CONFLICTOS BÉLICOS, CRISIS Y LEYES POR MOTIVOS ABSURDOS",
-        "descripcion": (
-            "Movilizaciones militares, disputas diplomáticas o normas legales desmedidas desatadas por comida, "
-            "animales, discusiones menores o incidentes territoriales ridículos."
-        ),
+        "dominio": "CIENCIA COTIDIANA Y FENÓMENOS FÍSICOS EXTRAÑOS",
+        "ejemplos": "por qué el cristal de seguridad se descubrió con celuloide seco, el efecto triboluminiscente del azúcar, el olor de la lluvia (petricor)",
+        "evitar": "guerra fría, espionaje militar, robots, ciberseguridad"
     },
     {
-        "id": "impostores_farsantes_alta_sociedad",
-        "nombre": "IMPOSTORES Y FALSOS NOBLES QUE ENGAÑARON AL MUNDO",
-        "descripcion": (
-            "Sujetos sin un centavo que fingieron ser médicos, diplomáticos, aristócratas o generales, viviendo con lujos "
-            "hasta que un detalle trivial o un encuentro fortuito reveló toda la farsa."
-        ),
-    },
-    {
-        "id": "fugas_prision_ridiculas",
-        "nombre": "FUGAS DE PRISIÓN MILIMÉTRICAS QUE SE DERRUMBARON AL FINAL",
-        "descripcion": (
-            "Reclusos que planearon fugas ingeniosas y complejas por meses, pero terminaron atrapados en la puerta de salida "
-            "por detalles absurdos como quedar atascados, tomar el transporte equivocado o festejar antes de tiempo."
-        ),
-    },
+        "dominio": "EPISODIOS BIZARROS DE LA CULTURA POP, ALIMENTOS Y COMERCIO",
+        "ejemplos": "la fiebre de los tulipanes en 1637, la catástrofe de la melaza de Boston de 1919, el invento de los cereales por desvelo puritano",
+        "evitar": "software, microchips, robótica, cibernética"
+    }
 ]
 
 
 def _cargar_datos_historial() -> dict:
-    """Carga el historial y el índice de la última categoría ejecutada."""
-    if HISTORIAL_FILE.exists():
-        try:
-            datos = json.loads(HISTORIAL_FILE.read_text(encoding="utf-8"))
-            if isinstance(datos, list):
-                return {"temas": datos, "ultimo_indice_categoria": -1}
-            if isinstance(datos, dict):
-                return {
-                    "temas": datos.get("temas", []),
-                    "ultimo_indice_categoria": datos.get("ultimo_indice_categoria", -1),
-                }
-        except Exception:
-            pass
-    return {"temas": [], "ultimo_indice_categoria": -1}
+    """Carga los temas abordados para no repetirlos."""
+    if not ARCHIVO_HISTORIAL.exists():
+        datos_iniciales = {"ultimo_indice_categoria": -1, "temas": []}
+        ARCHIVO_HISTORIAL.write_text(json.dumps(datos_iniciales, ensure_ascii=False, indent=2), encoding="utf-8")
+        return datos_iniciales
+    try:
+        return json.loads(ARCHIVO_HISTORIAL.read_text(encoding="utf-8"))
+    except Exception:
+        return {"ultimo_indice_categoria": -1, "temas": []}
 
 
-def _guardar_datos_historial(temas: list[str], indice_categoria: int) -> None:
-    """Almacena el listado de temas y la última categoría para rotación fija."""
-    contenido = {
-        "ultimo_indice_categoria": indice_categoria,
-        "temas": temas,
-    }
-    HISTORIAL_FILE.write_text(json.dumps(contenido, ensure_ascii=False, indent=2), encoding="utf-8")
+def _guardar_tema_en_historial(tema: str, nuevo_indice: int) -> None:
+    """Registra el tema procesado."""
+    datos = _cargar_datos_historial()
+    datos["ultimo_indice_categoria"] = nuevo_indice
+    datos["temas"].append(tema.strip())
+    ARCHIVO_HISTORIAL.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def es_tema_duplicado_con_ia(client: Groq, nuevo_candidato: str, historial_temas: list[str]) -> bool:
-    """Árbitro IA estricto: evalúa contra el 100% del historial sin recortes."""
-    if not historial_temas:
+def es_tema_duplicado_con_ia(client: Groq, tema_propuesto: str, historial: list[str]) -> bool:
+    """Valida semánticamente si el tema ya fue cubierto en el canal."""
+    if not historial:
         return False
 
-    candidato_limpio = nuevo_candidato.strip().lower()
-    for t in historial_temas:
-        if candidato_limpio == t.strip().lower():
+    tema_norm = re.sub(r"[^\w\s]", "", tema_propuesto).strip().lower()
+    for h in historial:
+        h_norm = re.sub(r"[^\w\s]", "", h).strip().lower()
+        if tema_norm in h_norm or h_norm in tema_norm:
+            print(f"Coincidencia textual directa detectada con: '{h}'")
             return True
 
-    # SE EVALÚA TODO EL HISTORIAL COMPLETO
-    temas_referencia = "\n".join(f"- {t}" for t in historial_temas)
+    muestra = historial[-60:]
+    prompt_arbitro = f"""
+    Eres el editor en jefe del canal 'La Caja Negra'.
+    Determina si el TEMA PROPUESTO trata sobre el MISMO hecho histórico, descubrimiento, invento o personaje que alguno de los TEMAS PREVIOS.
+    Si habla del mismo hecho de fondo (aunque use otras palabras o enfoque), responde DUPLICADO.
+    Si es un hecho nuevo o diferente, responde NUEVO.
 
-    prompt_juez = f"""
-    Eres un árbitro editorial y verificador estricto para 'La Caja Negra'.
-    Determina si la propuesta relata EL MISMO evento, hecho real o historia histórica/moderna que cualquiera de los casos ya tratados.
+    TEMA PROPUESTO:
+    "{tema_propuesto}"
 
-    PROPUESTA A EVALUAR:
-    "{nuevo_candidato}"
+    HISTORIAL RECIENTE:
+    {json.dumps(muestra, ensure_ascii=False)}
 
-    HISTORIAL COMPLETO DE CASOS YA TRATADOS:
-    {temas_referencia}
-
-    CRITERIOS DE DESCARTE:
-    - Responde DUPLICADO si es la misma historia real (incluso si cambia el título, los nombres de los adjetivos o el enfoque).
-    - Responde NUEVO si es un hecho, protagonista o evento completamente diferente que nunca antes ha sido tratado en el historial.
-
-    Responde ÚNICAMENTE con una sola palabra: 'DUPLICADO' o 'NUEVO'.
+    Responde ÚNICAMENTE con la palabra "DUPLICADO" o "NUEVO".
     """
 
     try:
-        verificacion = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "Eres un árbitro editorial estricto. Respondes únicamente DUPLICADO o NUEVO."},
-                {"role": "user", "content": prompt_juez},
+                {"role": "system", "content": "Eres un árbitro editorial estricto. Responde solo DUPLICADO o NUEVO."},
+                {"role": "user", "content": prompt_arbitro},
             ],
             temperature=0.0,
             max_completion_tokens=20,
-            extra_body={"reasoning_effort": "low"},
         )
-        veredicto = verificacion.choices[0].message.content.strip().upper()
-        return "DUPLICADO" in veredicto
+        resp = completion.choices[0].message.content.strip().upper()
+        es_duplicado = "DUPLICADO" in resp
+        if es_duplicado:
+            print(f"Árbitro IA: '{tema_propuesto}' trata un hecho ya existente en el historial.")
+        return es_duplicado
     except Exception as e:
-        print(f"⚠️ Error consultando árbitro IA: {e}")
+        print(f"Advertencia en árbitro IA: {e}. Se permite continuar.")
         return False
 
 
-def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
-    """Consulta a Groq rotando ordenadamente y usando disparadores dinámicos contra TODO el historial."""
+def obtener_tema_automatico(max_intentos: int = 8) -> tuple[str, int]:
+    """Genera hechos reales no redundantes rotando dominios temáticos aislados."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GROQ_API_KEY no encontrada en el archivo .env.")
@@ -198,52 +150,53 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
     datos_historial = _cargar_datos_historial()
     temas_previos = datos_historial["temas"]
 
-    nuevo_indice = (datos_historial["ultimo_indice_categoria"] + 1) % len(CATEGORIAS)
-    categoria = CATEGORIAS[nuevo_indice]
+    # Selección aleatoria obligatoria de un dominio distinto
+    dominio = random.choice(DOMINIOS_HISTORICOS)
 
-    print(f"🔄 Rotación temática [{nuevo_indice + 1}/{len(CATEGORIAS)}]: {categoria['nombre']}")
-    print(f"📚 Verificando contra {len(temas_previos)} casos históricos registrados (100% del historial)...")
+    muestra_reciente = temas_previos[-30:] if len(temas_previos) > 30 else temas_previos
+    lista_recientes_str = "\n".join(f"- {t}" for t in muestra_reciente) if muestra_reciente else "Ninguno"
 
-    # TODO EL HISTORIAL COMPLETO
-    lista_historial_prompt = "\n".join(f"- {t}" for t in temas_previos) if temas_previos else "Ninguno"
-
+    rechazados_en_esta_sesion = []
     tema_candidato_final = ""
+
     for intento in range(max_intentos):
-        angulo_elegido = random.choice(ANGULOS_DISPARADORES)
+        texto_rechazados = ""
+        if rechazados_en_esta_sesion:
+            texto_rechazados = "TEMAS RECIÉN RECHAZADOS (CAMBIA RADICALMENTE):\n" + "\n".join(f"✖ {r}" for r in rechazados_en_esta_sesion)
 
         prompt_generador = f"""
-        Actúa como investigador y productor de historias virales para el canal 'La Caja Negra'.
-        Tu misión es proponer UN caso real, específico y comprobado que despierte asombro inmediato ("¿Cómo pudieron hacer semejante tontería?").
+        Eres el investigador del canal 'La Caja Negra'.
+        Propones curiosidades históricas y científicas reales, inteligentes e irónicas sobre la torpeza y genialidad humana.
 
-        CATEGORÍA OBLIGATORIA:
-        {categoria['nombre']}
-        Contexto: {categoria['descripcion']}
+        DOMINIO ASIGNADO PARA ESTE VIDEO:
+        👉 {dominio['dominio']}
+        Pistas / Línea: {dominio['ejemplos']}
+        TERMINANTEMENTE PROHIBIDO EN ESTE TURNO: {dominio['evitar']}, 'bug', 'software', 'cibernético', 'robot'.
 
-        ENFOQUE ESPECÍFICO REQUERIDO:
-        Busca un caso verídico relacionado con: {angulo_elegido}.
+        REGLAS DE ORO OBLIGATORIAS:
+        1. DEBE SER UN HECHO 100% REAL Y DOCUMENTADO. No inventes híbridos ficticios.
+        2. Menciona a la persona, el lugar o el objeto verídico (ej. Robert Liston, Lago Peigneur, Radithor, Boston 1919).
+        3. Prohibidos los clichés de internet (nada de microondas con chocolate, penicilina, Silly Putty, ni guerra de los emúes).
+        {texto_rechazados}
 
-        REGLAS DE SELECCIÓN:
-        1. El caso debe ser 100% REAL y documentado (con personas, lugares y hechos comprobables). Tanto casos del siglo XXI como históricos son válidos.
-        2. Evita los casos más trillados de internet (ej. el robo de Amberes, la pizza bomba, el typo de Bangladesh, Michael Malloy). Ve por sucesos increíbles pero poco explotados.
-        3. Resalta la ironía o la torpeza: qué planearon y la estupidez exacta por la que todo se fue al traste.
-        4. ESTRICTAMENTE PROHIBIDO REPETIR O PARAFRASEAR CUALQUIERA DE ESTOS CASOS YA TRATADOS:
-        {lista_historial_prompt}
+        HISTORIAL RECIENTE A EVITAR:
+        {lista_recientes_str}
 
-        Devuelve ÚNICAMENTE un título corto, directo y con gancho magnético (estilo YouTube / TikTok).
-        Sin comillas, sin introducciones ni notas.
+        MISIÓN:
+        Entrega ÚNICAMENTE el título llamativo y directo (máximo 12 palabras). Sin explicaciones, comillas ni adornos.
         """
 
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
-                    "content": "Eres un editor de historias virales insólitas. Propones solo títulos directos de sucesos reales asombrosos y cómicos.",
+                    "content": "Eres un historiador implacable. Solo propones eventos verídicos con nombres, fechas o lugares documentados.",
                 },
                 {"role": "user", "content": prompt_generador},
             ],
-            temperature=0.8 + (intento * 0.04),
-            max_completion_tokens=150,
+            temperature=0.88,
+            max_completion_tokens=80,
             extra_body={"reasoning_effort": "low"},
         )
 
@@ -257,124 +210,103 @@ def obtener_tema_automatico(max_intentos: int = 6) -> tuple[str, int]:
         es_duplicado = es_tema_duplicado_con_ia(client, tema_candidato, temas_previos)
 
         if not es_duplicado:
-            return tema_candidato, nuevo_indice
+            print(f"🎯 Tema seleccionado [{dominio['dominio']}]: '{tema_candidato}'")
+            return tema_candidato, 0
 
-        print(f"⚠️ El árbitro IA detectó que '{tema_candidato}' ya existe en el historial completo. Explorando otro ángulo ({intento + 1}/{max_intentos})...")
+        rechazados_en_esta_sesion.append(tema_candidato)
+        print(f"⚠️ Tema repetido ({tema_candidato}). Buscando otra alternativa ({intento + 1}/{max_intentos})...")
         tema_candidato_final = tema_candidato
 
-    return (tema_candidato_final if tema_candidato_final else "El robo arruinado por una alarma Bluetooth"), nuevo_indice
+    return (tema_candidato_final if tema_candidato_final else "El insólito incidente que transformó la historia moderna"), 0
 
 
-def registrar_tema_en_historial(tema: str, indice_categoria: int) -> None:
-    """Registra el tema exitoso y consolida el índice de rotación."""
-    datos = _cargar_datos_historial()
-    temas = datos["temas"]
-    if tema not in temas:
-        temas.append(tema)
-    _guardar_datos_historial(temas, indice_categoria)
+def producir_short_bilingue(tema: str = None) -> tuple[Path, Path]:
+    """Ejecuta el ciclo de producción completo en Español e Inglés."""
+    indice_categoria = 0
+    if not tema or not tema.strip():
+        tema, indice_categoria = obtener_tema_automatico()
+    else:
+        tema = tema.strip()
+        print(f"📌 Usando tema manual proporcionado: '{tema}'")
 
+    print("\n" + "=" * 60)
+    print(f"🎬 INICIANDO PRODUCCIÓN DE SHORTS BILINGÜES: {tema.upper()}")
+    print("=" * 60)
 
-def eliminar_copias_base_subtituladas(ruta_video_final: Path) -> None:
-    """Elimina videos base solo cuando existe su versión subtitulada correspondiente."""
-    for copia_base in ruta_video_final.parent.glob("*.mp4"):
-        if copia_base == ruta_video_final or copia_base.stem.endswith("_subtitulado"):
-            continue
+    # 1. Estructuración del guion bilingüe
+    print("\n[Paso 1/5] Generando guiones sincronizados (ES + EN)...")
+    guion_es_data = generar_guion(tema)
+    guion_en_data = traducir_guion_a_ingles(guion_es_data)
+    guion_es = guion_es_data["guion"]
+    guion_en = guion_en_data["guion"]
 
-        copia_subtitulada = copia_base.with_name(f"{copia_base.stem}_subtitulado{copia_base.suffix}")
-        if copia_subtitulada.exists():
-            copia_base.unlink(missing_ok=True)
-            print(f"✔ Copia sin subtítulos eliminada: {copia_base.name}")
+    nombre_base = re.sub(r"[^\w\s-]", "", tema.lower())
+    nombre_base = re.sub(r"[\s_-]+", "_", nombre_base).strip("_")[:50]
 
+    dir_json = BASE_DIR / "outputs" / "json"
+    dir_json.mkdir(parents=True, exist_ok=True)
+    ruta_json_es = dir_json / f"{nombre_base}_es.json"
+    ruta_json_en = dir_json / f"{nombre_base}_en.json"
 
-def main() -> int:
-    print("====================================================")
-    print("   🤖 CAJANEGRABOT - FÁBRICA BILINGÜE DE SHORTS    ")
-    print("   [ES] La Caja Negra  |  [EN] The Black Box Archives")
-    print("====================================================")
+    ruta_json_es.write_text(json.dumps({"guion": guion_es}, ensure_ascii=False, indent=2), encoding="utf-8")
+    ruta_json_en.write_text(json.dumps({"guion": guion_en}, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 1. Obtener tema
-    print("\n[1/8] Consultando un nuevo tema inédito con disparadores dinámicos...")
-    tema, indice_cat = obtener_tema_automatico()
-    print(f'🎯 Tema seleccionado: "{tema}"')
+    # 2. Generación visual con ComfyUI (12 escenas compartidas)
+    print("\n[Paso 2/5] Generando 12 ilustraciones de cómic en ComfyUI...")
+    generar_secuencia_imagenes(
+        guion_completo=guion_es["narracion"],
+        titulo=guion_es.get("titulo", tema),
+        nombre_base=nombre_base,
+        total_escenas=12
+    )
 
-    # 2. Generar Guiones (Calibrados en generator.py a 180-205 palabras para durar 1:10 - 1:20 min)
-    print("\n[2/8] Generando y adaptando guiones con Groq...")
-    resultado_guion_es = generar_guion(tema, minimo=180, maximo=205)
-    resultado_guion_en = traducir_guion_a_ingles(resultado_guion_es)
+    # 3. Síntesis de voz con captura de tiempos exactos
+    print("\n[Paso 3/5] Sintetizando voz en off bilingüe y calculando marcas de tiempo...")
+    ruta_audio_es = convertir_texto_a_voz(guion_es["narracion"], nombre_base=f"{nombre_base}_es", idioma="es")
+    ruta_audio_en = convertir_texto_a_voz(guion_en["narracion"], nombre_base=f"{nombre_base}_en", idioma="en")
 
-    # Extraer datos ES
-    guion_data_es = resultado_guion_es["guion"]
-    titulo_es = guion_data_es["titulo"]
-    narracion_es = guion_data_es["narracion"]
-    narracion_visual = narracion_es.removesuffix(" " + CIERRE_VIDEO_ES).rstrip()
+    # Medir duración exacta del audio para sincronizar el corte de video
+    clip_a_es = mp.AudioFileClip(str(ruta_audio_es))
+    duracion_es = clip_a_es.duration
+    clip_a_es.close()
 
-    # Extraer datos EN
-    guion_data_en = resultado_guion_en["guion"]
-    titulo_en = guion_data_en["titulo"]
-    narracion_en = guion_data_en["narracion"]
+    clip_a_en = mp.AudioFileClip(str(ruta_audio_en))
+    duracion_en = clip_a_en.duration
+    clip_a_en.close()
 
-    # Guardar JSONs
-    ruta_json_es = guardar_guion(resultado_guion_es, sufijo="_es")
-    ruta_json_en = guardar_guion(resultado_guion_en, sufijo="_en")
-    nombre_raiz = ruta_json_es.stem.removesuffix("_es")
-    print(f"✔ Guion [ES]: {titulo_es}")
-    print(f"✔ Script [EN]: {titulo_en}")
+    # 4. Montaje de video base vertical con Ken Burns y música
+    print("\n[Paso 4/5] Ensamblando videos verticales en MoviePy / FFmpeg...")
+    ruta_video_es = montar_video_final(
+        nombre_base=f"{nombre_base}_es",
+        duracion_voz=duracion_es,
+        ruta_audio_personalizada=ruta_audio_es,
+        idioma="es"
+    )
+    ruta_video_en = montar_video_final(
+        nombre_base=f"{nombre_base}_en",
+        duracion_voz=duracion_en,
+        ruta_audio_personalizada=ruta_audio_en,
+        idioma="en"
+    )
 
-    # 3. Imágenes SDXL
-    print("\n[3/8] Diseñando prompts visuales con esquema 3-3-3-3 y renderizando 12 escenas...")
-    generar_secuencia_imagenes(narracion_visual, titulo_es, nombre_base=nombre_raiz, total_escenas=12)
-    print("✔ Secuencia visual completada.")
+    # 5. Subtítulos dinámicos sincronizados
+    print("\n[Paso 5/5] Quemando subtítulos sincronizados...")
+    video_final_es = agregar_subtitulos_al_video(ruta_video_es, ruta_audio_es, idioma="es", texto_referencia=guion_es["narracion"])
+    video_final_en = agregar_subtitulos_al_video(ruta_video_en, ruta_audio_en, idioma="en", texto_referencia=guion_en["narracion"])
 
-    # 4. Síntesis de voz
-    print("\n[4/8] Sintetizando voces en off con Edge-TTS...")
-    ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
-    ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
+    # 6. Metadata de publicación y registro en historial
+    generar_archivo_metadata(titulo=guion_es.get("titulo", tema), tema=tema, nombre_base=nombre_base, idioma="es")
+    generar_archivo_metadata(titulo=guion_en.get("titulo", tema), tema=tema, nombre_base=nombre_base, idioma="en")
+    _guardar_tema_en_historial(tema, indice_categoria)
 
-    clip_es = mp.AudioFileClip(str(ruta_audio_es))
-    duracion_es = clip_es.duration
-    clip_es.close()
+    print("\n" + "=" * 60)
+    print("✔ PRODUCCIÓN FINALIZADA CON ÉXITO")
+    print(f"👉 Short Español: {video_final_es}")
+    print(f"👉 Short Inglés:  {video_final_en}")
+    print("=" * 60)
 
-    clip_en = mp.AudioFileClip(str(ruta_audio_en))
-    duracion_en = clip_en.duration
-    clip_en.close()
-
-    print(f"✔ Audio [ES] listo: {duracion_es:.2f}s")
-    print(f"✔ Audio [EN] listo: {duracion_en:.2f}s")
-
-    # 5. Montaje de video
-    print("\n[5/8] Montando videos base sincronizados con Ken Burns y música...")
-    ruta_video_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, idioma="es")
-    ruta_video_base_en = montar_video_final(f"{nombre_raiz}_en", duracion_en, idioma="en")
-
-    # 6. Quemado de subtítulos
-    print("\n[6/8] Transcribiendo y quemando subtítulos con Whisper...")
-    ruta_final_es = agregar_subtitulos_al_video(ruta_video_base_es, ruta_audio_es, idioma="es")
-    ruta_final_en = agregar_subtitulos_al_video(ruta_video_base_en, ruta_audio_en, idioma="en")
-
-    eliminar_copias_base_subtituladas(ruta_final_es)
-    eliminar_copias_base_subtituladas(ruta_final_en)
-
-    # 7. Metadatos
-    print("\n[7/8] Generando metadatos para YouTube Shorts...")
-    ruta_txt_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
-    ruta_txt_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
-
-    # 8. Historial
-    registrar_tema_en_historial(tema, indice_cat)
-
-    print("\n====================================================")
-    print("🎉 ¡PRODUCCIÓN BILINGÜE COMPLETADA EXITOSAMENTE!")
-    print("====================================================")
-    print(f"🎯 Tema trabajado:   {tema}")
-    print("\n📦 LA CAJA NEGRA (ESPAÑOL):")
-    print(f"   🎬 Video:      {ruta_final_es.name}")
-    print(f"   📝 Metadatos:  {ruta_txt_es.name}")
-    print("\n📦 THE BLACK BOX ARCHIVES (ENGLISH):")
-    print(f"   🎬 Video:      {ruta_final_en.name}")
-    print(f"   📝 Metadatos:  {ruta_txt_en.name}")
-    print("====================================================")
-    return 0
+    return video_final_es, video_final_en
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    producir_short_bilingue()

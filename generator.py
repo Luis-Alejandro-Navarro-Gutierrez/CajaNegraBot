@@ -1,6 +1,6 @@
 """Módulo para generar y traducir guiones estructurados con Groq (ES / EN).
 Optimizado para openai/gpt-oss-120b con reasoning controlado para evitar respuestas vacías.
-Calibrado para videos verticales de 1:10 a 1:20 min y variedad cinematográfica en cómic moderno.
+Calibrado para videos verticales de 1:10 a 1:20 min, curiosidades '¿Sabías que...?' y explicaciones del porqué.
 Canal: La Caja Negra / The Black Box Archives.
 """
 
@@ -67,23 +67,24 @@ def _limpiar_y_parsear_json(texto: str) -> dict:
 
 
 def generar_guion(tema: str, minimo: int = 180, maximo: int = 205) -> dict:
-    """Genera un guion entretenido, con malicia, directo y sin tecnicismos pesados.
+    """Genera un guion entretenido, directo y divulgativo.
+    Cubre historias reales, ciencia cotidiana y explicaciones del porqué.
     Calibrado a 180-205 palabras para lograr entre 1:10 y 1:20 minutos de locución real."""
     client = _get_groq_client()
 
     prompt = f"""
-    Escribe un guion en español para un video vertical sobre este caso real: "{tema}".
+    Escribe un guion en español para un video vertical sobre este tema: "{tema}".
     
-    TONO Y ESTILO:
-    - Habla como si le estuvieras contando a un amigo en una cafetería el chisme, crimen, robo o accidente más ridículo e insólito que jamás ha escuchado.
-    - CERO lenguaje poético, CERO metáforas abstractas ("elegancia de un pulpo", "piscina de confeti", "destino implacable").
-    - CERO tecnicismos aburridos y cero explicaciones académicas secas. Usa palabras directas, cotidianas y con ritmo rápido.
-    - Cuenta HECHOS REALES de forma cronológica: quién lo hizo, qué plan maestro tenían, y cuál fue la metida de pata exacta que arruinó todo.
+    TONO Y ENFOQUE:
+    - Habla como si le estuvieras contando a un amigo en una cafetería el dato, misterio cotidiano o historia real más fascinante que acaba de escuchar.
+    - SI ES UNA CURIOSIDAD O FENÓMENO (ej. por qué el cielo es azul, por qué el hielo flota, por qué mezclar amarillo y azul da verde): EXPLICA EL 'POR QUÉ' DE FORMA SENCILLA, VISUAL Y DIRECTA, usando causas reales y cotidianas sin fórmulas complejas.
+    - SI ES UN HECHO O ANÉCDOTA HISTÓRICA: Cuenta los hechos reales en orden cronológico, resaltando la ironía, la sorpresa o el error humano.
+    - CERO lenguaje poético, CERO metáforas vacías y CERO tecnicismos académicos pesados. Ritmo ágil de divulgación popular.
     
-    REGLAS ESTRICTAS DE DURACIÓN:
-    1. Longitud de narración: EXACTAMENTE entre {minimo} y {maximo} palabras totales. Esto es vital para que la locución dure entre 1:10 y 1:20 minutos. No entregues menos de {minimo} palabras.
-    2. Comienza DIRECTO con un gancho frontal "¿Sabías que...?" exponiendo el dato verídico más disparatado del caso desde la primera línea.
-    3. PROHIBIDO usar frases meta como "el giro llegó", "la sorpresa fue", "el clímax" o "la moraleja". El desenlace insólito debe entenderse solo por los hechos.
+    REGLAS ESTRICTAS DE DURACIÓN Y ESTRUCTURA:
+    1. Longitud de narración: EXACTAMENTE entre {minimo} y {maximo} palabras totales. Esto es indispensable para que la locución dure entre 1:10 y 1:20 minutos. No entregues menos de {minimo} palabras.
+    2. Comienza DIRECTO con un gancho frontal "¿Sabías que...?" planteando la duda, el fenómeno o el dato insólito desde la primera frase.
+    3. PROHIBIDO usar frases meta como "el giro llegó", "la moraleja es", "en conclusión" o "la sorpresa fue". La explicación o desenlace debe fluir de forma natural.
     4. Cierre obligatorio como última frase de la narración: "{CIERRE_VIDEO_ES}".
     5. Cero anotaciones de cámara, corchetes o efectos de sonido; entrega solo el texto limpio para locución.
     6. Asegúrate de cerrar la estructura JSON completamente.
@@ -96,9 +97,9 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 205) -> dict:
         {
             "role": "system",
             "content": (
-                "Eres el creador de historias virales para 'La Caja Negra'. Cuentas historias reales sobre robos insólitos, "
-                "hackeos, crímenes absurdos y accidentes históricos con un tono dinámico, entretenido, irónico y directo al grano. "
-                "Respondes únicamente con un objeto JSON válido y estrictamente cerrado."
+                "Eres el creador de contenido de 'La Caja Negra'. Divulgas curiosidades cotidianas del mundo, "
+                "el porqué de los fenómenos, ciencia accesible, historia insólita y enigmas reales con un tono dinámico, "
+                "cercano y magnético. Respondes únicamente con un objeto JSON válido y estrictamente cerrado."
             ),
         },
         {"role": "user", "content": prompt},
@@ -120,22 +121,22 @@ def generar_guion(tema: str, minimo: int = 180, maximo: int = 205) -> dict:
 
 
 def traducir_guion_a_ingles(guion_es: dict) -> dict:
-    """Adapta el guion al inglés manteniendo el ritmo dinámico, los hechos concretos y la misma duración."""
+    """Adapta el guion al inglés manteniendo el ritmo dinámico, la claridad de la explicación y la duración exacta."""
     client = _get_groq_client()
     datos = guion_es["guion"]
 
     prompt = f"""
     Translate and adapt this Spanish script for 'The Black Box Archives' vertical video.
-    Keep the same fast-paced, ironic, shocking, and casual storytelling tone (like sharing wild true events with friends).
-    NO poetic metaphors, NO dry academic jargon, NO fictional filler. Stick to the actual facts and the ridiculous human error.
+    Keep the same fast-paced, curious, engaging, and casual storytelling tone (like sharing a mind-blowing fact with a friend).
+    If it explains why something happens, ensure the practical explanation remains crystal clear without dry academic jargon.
     
     Source Title: {datos['titulo']}
     Source Script: {datos['narracion']}
     
     Rules:
     1. Hook MUST start with "Did you know that...?"
-    2. Maintain exact chronological progression, absurd real facts, and a word count of 175 to 200 words (matching 1:10 to 1:20 duration).
-    3. NO meta-narrative announcements like "the twist came", "the funny part was", or "in conclusion".
+    2. Maintain exact progression, clear real-world causes/facts, and a word count of 175 to 200 words (matching 1:10 to 1:20 duration).
+    3. NO meta-narrative announcements like "the surprise came", "in conclusion", or "unexpected twist".
     4. Mandatory final sentence: "{CIERRE_VIDEO_EN}".
     5. Ensure the JSON structure is strictly complete and closed.
 
@@ -147,8 +148,8 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
         {
             "role": "system",
             "content": (
-                "You write viral, engaging true-story scripts for 'The Black Box Archives'. "
-                "Tell absurd, crazy true crime, heist, and hacking stories casually without stiff academic jargon. "
+                "You write viral, engaging true curiosity scripts for 'The Black Box Archives'. "
+                "Explain the 'why' behind everyday phenomena, science facts, and astonishing history casually and clearly. "
                 "Output strict, complete, and properly closed JSON only."
             ),
         },

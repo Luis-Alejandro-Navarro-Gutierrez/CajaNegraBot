@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sys
 import time
 import uuid
@@ -30,6 +31,26 @@ COMFYUI_CHECKPOINT = os.getenv("COMFYUI_CHECKPOINT", "arthemyComicsXL_v20.safete
 COMFYUI_WIDTH = 768
 COMFYUI_HEIGHT = 1344
 COMFYUI_OUTPUT_DIR = Path(os.getenv("COMFYUI_OUTPUT_DIR", str(BASE_DIR / "outputs" / "comfyui"))).expanduser().resolve()
+
+
+def _limpiar_carpeta_comfyui() -> None:
+    """Vacía por completo la carpeta de salida temporal de ComfyUI."""
+    if not COMFYUI_OUTPUT_DIR.exists():
+        return
+
+    time.sleep(1.0)  # Pausa breve para garantizar que ComfyUI haya liberado descriptores de archivo en Windows
+    print(f"🧹 Limpiando archivos temporales en ComfyUI ({COMFYUI_OUTPUT_DIR.name})...")
+    
+    for item in COMFYUI_OUTPUT_DIR.iterdir():
+        for intento in range(3):
+            try:
+                if item.is_file() or item.is_symlink():
+                    item.unlink(missing_ok=True)
+                elif item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                break
+            except OSError:
+                time.sleep(0.5)
 
 
 def _crear_workflow_comfy(prompt: str, negative_prompt: str, seed: int, nombre_salida: str) -> dict:
@@ -117,19 +138,6 @@ def _generar_en_comfy(prompt: str, negative_prompt: str, escena: int, ruta_salid
     imagen_respuesta.raise_for_status()
     with Image.open(BytesIO(imagen_respuesta.content)) as imagen:
         imagen.convert("RGB").save(ruta_salida, format="JPEG", quality=95)
-
-    nombre_png = Path(imagen_info["filename"])
-    subcarpeta = Path(imagen_info.get("subfolder", ""))
-    ruta_png = (COMFYUI_OUTPUT_DIR / subcarpeta / nombre_png).resolve()
-    try:
-        ruta_png.relative_to(COMFYUI_OUTPUT_DIR)
-    except ValueError:
-        ruta_png = None
-    if ruta_png and ruta_png.suffix.lower() == ".png" and ruta_png.is_file():
-        try:
-            ruta_png.unlink()
-        except OSError as error:
-            print(f"⚠ No pude borrar el PNG temporal de ComfyUI ({ruta_png.name}): {error}")
 
 
 def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
@@ -219,6 +227,7 @@ def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
 def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: str, total_escenas: int = 12) -> list[Path]:
     """
     Asocia cada fragmento de una curiosidad real con una ilustración de cómic a color y la renderiza en ComfyUI.
+    Al finalizar la generación de todas las escenas, limpia la carpeta de salida temporal de ComfyUI.
     """
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
@@ -254,17 +263,17 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
 
     MANDATORY CINEMATIC SHOT DISTRIBUTION (AVOID ENDLESS HUMAN FACES):
     You MUST alternate the camera focus across the 12 scenes following this exact framework:
-    - SCENES 1, 5, 9 (OBJECT CLOSE-UPS / STILL LIFE): Focus exclusively on meaningful objects, instruments, or tech (e.g., smoking coffee cup on a circuit board, open briefcase with documents, red warning screen, locked door, blueprints, cut cables). NO human faces.
-    - SCENES 2, 6, 10 (WIDE SHOTS / LANDSCAPES): Wide exterior or interior environments (e.g., imposing government buildings, busy city avenues at dusk, dimly lit server room aisles, quiet roads, satellite dish field). NO human faces.
-    - SCENES 3, 7, 11 (ACTION / SITUATION): Dynamic moments or environmental drama (e.g., vehicles speeding away, shadows running along a wall, smoke escaping a server vent, flashing red emergency lights).
-    - SCENES 4, 8, 12 (CHARACTERS / REACTIONS): ONLY in these three scenes can you illustrate a specific person or character, showing clear expressive facial reactions (shock, nervousness, irony, or perplexity).
+- SCENES 1, 5, 9 (OBJECT CLOSE-UPS / STILL LIFE): Focus exclusively on meaningful objects, instruments, or tech (e.g., smoking coffee cup on a circuit board, open briefcase with documents, red warning screen, locked door, blueprints, cut cables). NO human faces.
+- SCENES 2, 6, 10 (WIDE SHOTS / LANDSCAPES): Wide exterior or interior environments (e.g., imposing government buildings, busy city avenues at dusk, dimly lit server room aisles, quiet roads, satellite dish field). NO human faces.
+- SCENES 3, 7, 11 (ACTION / SITUATION): Dynamic moments or environmental drama (e.g., vehicles speeding away, shadows running along a wall, smoke escaping a server vent, flashing red emergency lights).
+- SCENES 4, 8, 12 (CHARACTERS / REACTIONS): ONLY in these three scenes can you illustrate a specific person or character, showing clear expressive facial reactions (shock, nervousness, irony, or perplexity).
 
     RULES FOR EACH NUMBERED PROMPT (STRICT):
-    - Choose EXACTLY ONE primary subject: either ONE object, ONE environment, or ONE character (only in allowed reaction scenes).
-    - ANTI-FUSION / ANTI-MUTATION: NEVER draw anthropomorphic creatures, animal-human hybrids, or extra limbs.
-    - POSE & PROPORTIONS: Specify exact positions (e.g., "both hands resting on the control desk"). Never describe floating or ambiguous limbs.
-    - NO text, subtitles, speech bubbles, watermarks, comic panels, or collage frames in the image.
-    - Write 35–45 clear, concrete descriptive words in English per prompt.
+- Choose EXACTLY ONE primary subject: either ONE object, ONE environment, or ONE character (only in allowed reaction scenes).
+- ANTI-FUSION / ANTI-MUTATION: NEVER draw anthropomorphic creatures, animal-human hybrids, or extra limbs.
+- POSE & PROPORTIONS: Specify exact positions (e.g., "both hands resting on the control desk"). Never describe floating or ambiguous limbs.
+- NO text, subtitles, speech bubbles, watermarks, comic panels, or collage frames in the image.
+- Write 35–45 clear, concrete descriptive words in English per prompt.
 
     Return ONLY valid JSON with exactly {total_escenas} prompts:
     {{"prompts":[{{"prompt_visual":"literal visual description for scene"}}]}}
@@ -386,5 +395,9 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
         raise RuntimeError(
             f"Storyboard incompleto: se generaron {len(lista_rutas_imagenes)}/{total_escenas} imágenes."
         )
+
+    # Limpieza final de la carpeta outputs/comfyui una vez convertidos todos los JPGs
+    _limpiar_carpeta_comfyui()
+
     print(f"✔ Generación completada. Guardadas {len(lista_rutas_imagenes)}/{total_escenas} imágenes.")
     return lista_rutas_imagenes

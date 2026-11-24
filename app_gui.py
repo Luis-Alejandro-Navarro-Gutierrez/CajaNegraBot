@@ -1,9 +1,7 @@
-"""
-CAJANEGRABOT // YOUTUBE CREATOR STUDIO PRO (SHORTS & DOCUMENTALES LARGOS)
-- Columna 1 (Control y Telemetría) ampliada para máxima legibilidad de logs técnicos.
-- Columna 3 (Monitor HD) estilizada y optimizada para previsualización continua.
-- Vigilante activo en vivo para documentales largos (muestra las 36 imágenes conforme salen de ComfyUI).
-- Soporte para ejecución en hilos y aislamiento de bucles asyncio.
+"""CAJANEGRABOT // YOUTUBE CREATOR STUDIO PRO (SHORTS & DOCUMENTALES LARGOS)
+- Telemetría y logs de ejecución ampliados.
+- Monitor HD y galería de escenas generadas en tiempo real.
+- Integración nativa con video.py (Ken Burns + música de fondo) y subtitles.py (Edge-TTS exacto).
 """
 
 import os
@@ -13,8 +11,9 @@ import threading
 import time
 from pathlib import Path
 from PIL import Image
-from proglog import ProgressBarLogger
 from plyer import notification
+from proglog import ProgressBarLogger
+import moviepy.editor as mp
 
 # ========================================================
 # FIX PARA MODO NOCONSOLE / PYINSTALLER
@@ -57,7 +56,6 @@ import pyperclip
 import main as pipeline_main
 from generator import (
     CIERRE_VIDEO_ES,
-    CIERRE_VIDEO_EN,
     generar_guion,
     traducir_guion_a_ingles,
     guardar_guion,
@@ -89,14 +87,12 @@ C_CARD_HOVER = "#323846"      # Hover interactivo
 C_INPUT = "#181B22"           # Campos y áreas de texto
 C_BORDER = "#333A4A"          # Bordes suaves delimitadores
 
-# Textos limpios de alto contraste
 C_TEXT_MAIN = "#FFFFFF"       # Blanco nítido
 C_TEXT_BODY = "#E2E8F0"       # Blanco hueso / gris suave
 C_TEXT_MUTED = "#94A3B8"      # Gris medio legible
 
-# Acentos selectivos
 C_TEAL = "#2DD4BF"            # Turquesa / Menta
-C_TEAL_DARK = "#134E48"       # Contenedor de badge turquesa
+C_TEAL_DARK = "#134E48"       # Contenedor badge turquesa
 C_PURPLE = "#C084FC"          # Púrpura pastel
 C_AMBER = "#FBBF24"           # Amarillo / Dorado suave
 C_AMBER_DARK = "#78350F"      # Contenedor badge dorado
@@ -104,7 +100,6 @@ C_EMERALD = "#34D399"         # Verde estatus
 C_DANGER = "#F87171"          # Rojo coral
 C_DANGER_HOVER = "#EF4444"
 
-# 3 Slots estratégicos para Shorts
 HORARIOS_INFO = [
     ("Slot 01", "11:45 AM", "Almuerzo / Break"),
     ("Slot 02", "05:30 PM", "Regreso / Salida"),
@@ -139,7 +134,6 @@ class VisorFullResolucion(ctk.CTkToplevel):
         self.minsize(700, 700)
         self.configure(fg_color=C_BG)
 
-        # Header
         hdr = ctk.CTkFrame(self, fg_color=C_SURFACE, height=56, corner_radius=0, border_color=C_BORDER, border_width=1)
         hdr.pack(fill="x", side="top")
 
@@ -164,7 +158,6 @@ class VisorFullResolucion(ctk.CTkToplevel):
         )
         self.btn_next.pack(side="right", padx=16, pady=10)
 
-        # Contenedor central
         self.img_container = ctk.CTkFrame(self, fg_color="#101216", corner_radius=0)
         self.img_container.pack(fill="both", expand=True)
 
@@ -274,22 +267,18 @@ class CajaNegraStudio(ctk.CTk):
             self.log(f"⚠️ No se pudo disparar notificación de Windows: {err}")
 
     def _construir_layout(self):
-        # Configuración de proporciones: Columna 1 (Logs) más amplia, Columna 3 más compacta
         self.grid_columnconfigure(0, weight=0, minsize=540)
         self.grid_columnconfigure(1, weight=0, minsize=520)
         self.grid_columnconfigure(2, weight=1, minsize=520)
         self.grid_rowconfigure(0, weight=1)
 
-        # ========================================================
         # COLUMNA 1: CONTROL & TELEMETRÍA (540 px)
-        # ========================================================
         self.col1 = ctk.CTkFrame(
             self, width=540, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
         self.col1.grid(row=0, column=0, padx=(12, 6), pady=12, sticky="nsew")
         self.col1.grid_propagate(False)
 
-        # Header Logo
         hdr_1 = ctk.CTkFrame(self.col1, fg_color="transparent")
         hdr_1.pack(fill="x", padx=16, pady=(16, 6))
 
@@ -335,7 +324,7 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MAIN,
         ).pack(anchor="w", pady=(2, 0))
 
-        # Tarjeta 1: Shorts Cíclicos Bilingües
+        # Shorts Bilingües
         card_shorts = ctk.CTkFrame(
             self.col1, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
         )
@@ -371,7 +360,7 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.btn_generar.pack(fill="x", padx=12, pady=(0, 10))
 
-        # Tarjeta 2: Documental Largo 16:9 (1-Click)
+        # Documental Largo
         card_largos = ctk.CTkFrame(
             self.col1, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1
         )
@@ -407,7 +396,7 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.btn_generar_largo.pack(fill="x", padx=12, pady=(0, 10))
 
-        # Status & Barra de Progreso
+        # Status & Progreso
         stat_box = ctk.CTkFrame(self.col1, fg_color=C_CARD, corner_radius=10, border_color=C_BORDER, border_width=1)
         stat_box.pack(fill="x", padx=14, pady=4)
 
@@ -430,7 +419,7 @@ class CajaNegraStudio(ctk.CTk):
         self.progress_bar.set(0)
         self.progress_bar.pack(fill="x", padx=16, pady=(4, 6))
 
-        # Consola de Logs Ampliada
+        # Consola de Logs
         ctk.CTkLabel(
             self.col1,
             text="TELEMETRÍA & LOGS DE EJECUCIÓN",
@@ -450,9 +439,7 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.txt_logs.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
-        # ========================================================
-        # COLUMNA 2: CENTRO DE PUBLICACIÓN & METADATOS (520 px)
-        # ========================================================
+        # COLUMNA 2: METADATOS Y PUBLICACIÓN (520 px)
         self.col2 = ctk.CTkFrame(
             self, width=520, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
@@ -466,7 +453,6 @@ class CajaNegraStudio(ctk.CTk):
             text_color=C_TEXT_MAIN,
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
-        # Pestañas para alternar entre Shorts y Documentales Largos
         self.tabview_meta = ctk.CTkTabview(
             self.col2, fg_color="transparent", segmented_button_fg_color=C_CARD,
             segmented_button_selected_color="#0F766E", segmented_button_selected_hover_color="#115E59"
@@ -475,7 +461,7 @@ class CajaNegraStudio(ctk.CTk):
         self.tab_shorts = self.tabview_meta.add("📱 Shorts (Bilingüe)")
         self.tab_largos = self.tabview_meta.add("🎬 Documental Largo")
 
-        # ----------------- CONTENIDO PESTAÑA SHORTS -----------------
+        # Pestaña Shorts
         box_es = ctk.CTkFrame(self.tab_shorts, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
         box_es.pack(fill="both", expand=True, pady=(2, 6))
 
@@ -548,7 +534,7 @@ class CajaNegraStudio(ctk.CTk):
             command=lambda: self._copiar_texto(self.txt_desc_en.get("1.0", "end").strip(), "Descripción [EN]")
         ).pack(side="right")
 
-        # ----------------- CONTENIDO PESTAÑA DOCUMENTAL LARGO -----------------
+        # Pestaña Documental Largo
         box_largo = ctk.CTkFrame(self.tab_largos, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
         box_largo.pack(fill="both", expand=True, pady=(2, 6))
 
@@ -585,7 +571,7 @@ class CajaNegraStudio(ctk.CTk):
             command=lambda: self._copiar_texto(self.txt_desc_largo.get("1.0", "end").strip(), "Descripción Largo")
         ).pack(side="right")
 
-        # ----------------- SLOTS Y LIMPIEZA -----------------
+        # Slots y Limpieza
         note_card = ctk.CTkFrame(self.col2, fg_color=C_CARD, corner_radius=12, border_color=C_BORDER, border_width=1)
         note_card.pack(fill="x", padx=14, pady=(2, 4))
 
@@ -631,9 +617,7 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.btn_limpieza.pack(fill="x", padx=16, pady=(4, 10))
 
-        # ========================================================
-        # COLUMNA 3: MONITOR & ÁLBUM HD (MÁS COMPACTA)
-        # ========================================================
+        # COLUMNA 3: MONITOR & ÁLBUM HD
         self.col3 = ctk.CTkFrame(
             self, fg_color=C_SURFACE, corner_radius=18, border_color=C_BORDER, border_width=1
         )
@@ -652,7 +636,6 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.lbl_media_badge.pack(anchor="w")
 
-        # Visor Panorámico Compacto
         self.preview_frame = ctk.CTkFrame(
             self.col3, fg_color=C_INPUT, corner_radius=14, border_color=C_BORDER, border_width=1, height=440
         )
@@ -680,7 +663,6 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.btn_ver_full.pack(fill="x", padx=16, pady=(2, 4))
 
-        # Álbum Horizontal
         ctk.CTkLabel(
             self.col3,
             text="GALERÍA DE ESCENAS GENERADAS",
@@ -695,7 +677,6 @@ class CajaNegraStudio(ctk.CTk):
 
         self.botones_miniaturas: list[ctk.CTkButton] = []
 
-        # Controles de Reproducción
         ctrl_box = ctk.CTkFrame(self.col3, fg_color="transparent")
         ctrl_box.pack(fill="x", padx=16, pady=(4, 14), side="bottom")
 
@@ -741,9 +722,6 @@ class CajaNegraStudio(ctk.CTk):
         )
         self.btn_play_en.pack(fill="x")
 
-    # ========================================================
-    # INTERACCIÓN DE ESTADO DE SLOTS
-    # ========================================================
     def _toggle_estado_slot(self, boton: ctk.CTkButton):
         if "PENDIENTE" in boton.cget("text"):
             boton.configure(
@@ -761,9 +739,6 @@ class CajaNegraStudio(ctk.CTk):
                 text_color=C_TEXT_MUTED
             )
 
-    # ========================================================
-    # LIMPIEZA Y MONITOR PREVIEW
-    # ========================================================
     def _limpiar_monitor_preview(self, mensaje: str):
         try:
             img_vacia = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
@@ -782,9 +757,6 @@ class CajaNegraStudio(ctk.CTk):
         self.imagenes_generadas.clear()
         self.btn_ver_full.configure(state="disabled")
 
-    # ========================================================
-    # TELEMETRÍA Y LOGS
-    # ========================================================
     def _log_directo(self, texto: str):
         try:
             self.after(0, lambda: self.log(texto))
@@ -807,7 +779,7 @@ class CajaNegraStudio(ctk.CTk):
         self.after(0, ui_update)
 
     # ========================================================
-    # PIPELINE DE SHORTS (HILO)
+    # PIPELINE DE SHORTS
     # ========================================================
     def _iniciar_produccion_hilo(self):
         if self.is_running:
@@ -830,7 +802,7 @@ class CajaNegraStudio(ctk.CTk):
 
     def _pipeline_worker(self):
         try:
-            self.log("Consultando Groq con rotación temática (5 categorías)...")
+            self.log("Consultando Groq con rotación temática (vectores aleatorios)...")
             tema, indice_cat = pipeline_main.obtener_tema_automatico()
             self.log(f"Tema seleccionado: '{tema}'")
 
@@ -871,37 +843,47 @@ class CajaNegraStudio(ctk.CTk):
 
             self.progress_bar.set(0.55)
 
-            self.log("Sintetizando voz en off [ES] con Álvaro...")
+            self.log("Sintetizando voz en off [ES] con Álvaro y extrayendo tiempos...")
             ruta_audio_es = convertir_texto_a_voz(narracion_es, nombre_base=f"{nombre_raiz}_es", idioma="es")
-            clip_es = pipeline_main.mp.AudioFileClip(str(ruta_audio_es))
-            duracion_es = clip_es.duration
-            clip_es.close()
+            clip_a_es = mp.AudioFileClip(str(ruta_audio_es))
+            duracion_es = clip_a_es.duration
+            clip_a_es.close()
 
-            self.log("Sintetizando voz en off [EN] con Christopher...")
+            self.log("Sintetizando voz en off [EN] con Christopher y extrayendo tiempos...")
             ruta_audio_en = convertir_texto_a_voz(narracion_en, nombre_base=f"{nombre_raiz}_en", idioma="en")
-            clip_en = pipeline_main.mp.AudioFileClip(str(ruta_audio_en))
-            duracion_en = clip_en.duration
-            clip_en.close()
+            clip_a_en = mp.AudioFileClip(str(ruta_audio_en))
+            duracion_en = clip_a_en.duration
+            clip_a_en.close()
 
             self.progress_bar.set(0.70)
 
-            self.log("Montando video base [ES]...")
             logger_moviepy = MoviePyCallbackLogger(self._actualizar_progreso_video)
-            ruta_base_es = montar_video_final(f"{nombre_raiz}_es", duracion_es, custom_logger=logger_moviepy, idioma="es")
 
-            self.log("Montando video base [EN]...")
-            ruta_base_en = montar_video_final(f"{nombre_raiz}_en", duracion_en, custom_logger=logger_moviepy, idioma="en")
+            self.log("Montando video base [ES] con Ken Burns y fondo...")
+            ruta_base_es = montar_video_final(
+                nombre_base=f"{nombre_raiz}_es",
+                duracion_voz=duracion_es,
+                custom_logger=logger_moviepy,
+                ruta_audio_personalizada=ruta_audio_es,
+                idioma="es"
+            )
+
+            self.log("Montando video base [EN] con Ken Burns y fondo...")
+            ruta_base_en = montar_video_final(
+                nombre_base=f"{nombre_raiz}_en",
+                duracion_voz=duracion_en,
+                custom_logger=logger_moviepy,
+                ruta_audio_personalizada=ruta_audio_en,
+                idioma="en"
+            )
 
             self.progress_bar.set(0.85)
 
-            self.log("Quemando subtítulos en español con Whisper...")
-            ruta_final_es = agregar_subtitulos_al_video(ruta_base_es, ruta_audio_es, idioma="es")
+            self.log("Quemando subtítulos sincronizados [ES]...")
+            ruta_final_es = agregar_subtitulos_al_video(ruta_base_es, ruta_audio_es, idioma="es", texto_referencia=narracion_es)
 
-            self.log("Quemando subtítulos en inglés con Whisper...")
-            ruta_final_en = agregar_subtitulos_al_video(ruta_base_en, ruta_audio_en, idioma="en")
-
-            pipeline_main.eliminar_copias_base_subtituladas(ruta_final_es)
-            pipeline_main.eliminar_copias_base_subtituladas(ruta_final_en)
+            self.log("Quemando subtítulos sincronizados [EN]...")
+            ruta_final_en = agregar_subtitulos_al_video(ruta_base_en, ruta_audio_en, idioma="en", texto_referencia=narracion_en)
 
             self.ultimo_video_path_es = ruta_final_es
             self.ultimo_video_path_en = ruta_final_en
@@ -910,8 +892,7 @@ class CajaNegraStudio(ctk.CTk):
             ruta_meta_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
             ruta_meta_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
 
-            if indice_cat != -1:
-                pipeline_main.registrar_tema_en_historial(tema, indice_cat)
+            pipeline_main._guardar_tema_en_historial(tema, indice_cat)
 
             self.progress_bar.set(1.0)
             self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)
@@ -936,7 +917,7 @@ class CajaNegraStudio(ctk.CTk):
             self.btn_generar_largo.configure(state="normal")
 
     # ========================================================
-    # PIPELINE DE DOCUMENTALES LARGOS (HILO + VIGILANTE EN VIVO)
+    # DOCUMENTALES LARGOS
     # ========================================================
     def _iniciar_produccion_largo_hilo(self):
         if self.is_running:
@@ -960,7 +941,6 @@ class CajaNegraStudio(ctk.CTk):
         hilo.start()
 
     def _vigilar_imagenes_largos_directo(self, stop_event: threading.Event):
-        """Monitorea la carpeta de producción activa para mostrar las imágenes 16:9 en directo."""
         imagenes_mostradas = set()
         dir_prod_base = BASE_DIR / "outputs" / "produccion_largos"
 
@@ -995,8 +975,6 @@ class CajaNegraStudio(ctk.CTk):
 
         try:
             self.log("🎬 Iniciando pipeline completo de documental largo (1-Click)...")
-            
-            # Ejecutar todo el orquestador
             ejecutar_pipeline_completo()
 
             ultimo_json = _obtener_ultimo_expediente_json()
@@ -1007,7 +985,6 @@ class CajaNegraStudio(ctk.CTk):
             if ruta_video.exists():
                 self.ultimo_video_largo_path = ruta_video
 
-            # Cargar metadatos largos generados
             ruta_txt_meta = carpeta_exp / "METADATA_YOUTUBE.txt"
             if ruta_txt_meta.exists():
                 self.after(100, lambda: self._cargar_metadatos_largos(ruta_txt_meta))
@@ -1122,7 +1099,6 @@ class CajaNegraStudio(ctk.CTk):
             pil_img = Image.open(ruta_img)
             w_orig, h_orig = pil_img.size
             
-            # Formatos de despliegue optimizados para la columna 3
             if w_orig > h_orig:
                 w, h = 480, 270
             else:
@@ -1245,12 +1221,13 @@ class CajaNegraStudio(ctk.CTk):
 
         eliminados = 0
 
-        # 1. Purgar Shorts
+        # Purgar Shorts
         if self.ultimo_nombre_raiz:
             nb = self.ultimo_nombre_raiz
             carpetas_shorts = [
                 ("json", "*.json"),
                 ("audio", f"{nb}_*.mp3"),
+                ("audio", f"{nb}_*tiempos.json"),
                 ("metadata", f"{nb}_*.txt"),
                 ("images", f"{nb}_escena_*.jpg"),
                 ("videos", f"{nb}_*.mp4")
@@ -1270,7 +1247,7 @@ class CajaNegraStudio(ctk.CTk):
                 prompts_file.unlink(missing_ok=True)
                 eliminados += 1
 
-        # 2. Purgar Documentales Largos
+        # Purgar Documentales Largos
         slug_largo = self.ultimo_video_largo_path.stem if self.ultimo_video_largo_path else None
 
         if not slug_largo:
@@ -1305,9 +1282,8 @@ class CajaNegraStudio(ctk.CTk):
                 vid_largo.unlink(missing_ok=True)
                 eliminados += 1
 
-        self.log(f"🧹 Espacio liberado por completo: {eliminados} elementos y carpetas purgados.")
+        self.log(f"🧹 Espacio liberado por completo: {eliminados} elementos purgados.")
 
-        # 3. Limpieza de cajas e interfaz
         self.entry_titulo_es.delete(0, "end")
         self.txt_desc_es.delete("1.0", "end")
         self.lbl_count_es.configure(text="0/100", text_color=C_TEXT_MUTED)

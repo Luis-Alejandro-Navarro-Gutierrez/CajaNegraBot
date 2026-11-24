@@ -1,4 +1,6 @@
-"""Módulo para generar el archivo de texto con títulos, descripciones y hashtags listos para redes (ES / EN)."""
+"""Módulo para generar el archivo de texto con títulos, descripciones y hashtags listos para redes (ES / EN).
+Optimizado para nichos amplios de '¿Sabías que...?': explicaciones cotidianas, ciencia, historia, animales y misterios.
+"""
 
 import re
 import os
@@ -9,7 +11,6 @@ if "CAJANEGRA_ROOT" in os.environ:
     BASE_DIR = Path(os.environ["CAJANEGRA_ROOT"])
 elif getattr(sys, "frozen", False):
     exe_path = Path(sys.executable).resolve()
-    # Si está dentro de dist (o subcarpeta de dist), sube hasta la raíz
     BASE_DIR = exe_path.parent.parent if exe_path.parent.name.lower() == "dist" else exe_path.parent
 else:
     BASE_DIR = Path(__file__).resolve().parent
@@ -20,22 +21,32 @@ def _obtener_hashtags_tematicos_es(tema: str, titulo: str) -> list[str]:
     texto = f"{tema} {titulo}".lower()
     hashtags = ["#Curiosidades", "#DatosCuriosos", "#Shorts"]
 
-    if any(k in texto for k in ["hacker", "computadora", "virus", "código", "software", "stuxnet", "internet"]):
-        hashtags.extend(["#Ciberseguridad", "#Tecnologia"])
-    elif any(k in texto for k in ["robo", "bóveda", "fuga", "alcatraz", "atraco", "estafa", "diamantes"]):
+    # 1. Curiosidades cotidianas y explicaciones del porqué
+    if any(k in texto for k in ["por qué", "color", "hielo", "ojo", "cielo", "bostezo", "mezcla", "luz", "sombra", "espejo", "dormir", "cuerpo humano", "hipo"]):
+        hashtags.extend(["#SabiasQue", "#AprendeEnTikTok", "#CienciaCotidiana"])
+    # 2. Animales y naturaleza
+    elif any(k in texto for k in ["animal", "perro", "oso", "gato", "pájaro", "especie", "plaga", "naturaleza", "biología", "marino", "selva"]):
+        hashtags.extend(["#AnimalesFascinantes", "#MundoAnimal", "#Biologia"])
+    # 3. Ciencia, medicina e inventos accidentales
+    elif any(k in texto for k in ["invento", "accidental", "medicina", "laboratorio", "física", "química", "átomo", "experimento", "ciencia", "cura"]):
+        hashtags.extend(["#Ciencia", "#Inventos", "#HistoriaCientifica"])
+    # 4. Guerras, reyes, leyes y disputas absurdas
+    elif any(k in texto for k in ["guerra", "batalla", "rey", "emperador", "ley", "tratado", "ejército", "militar", "conflicto", "disputa", "imperio"]):
+        hashtags.extend(["#HistoriaReal", "#GuerrasAbsurdas", "#Historia"])
+    # 5. Falsantes, impostores y engaños de alta sociedad
+    elif any(k in texto for k in ["impostor", "farsante", "falso", "noble", "engaño", "arte", "museo", "estafador", "falsificación"]):
+        hashtags.extend(["#GrandesEngaños", "#Impostores", "#HistoriasReales"])
+    # 6. Enigmas, barcos fantasma e ingeniería
+    elif any(k in texto for k in ["barco fantasma", "naufragio", "avión", "desaparición", "torre", "puente", "ingeniería", "enigma", "misterio"]):
+        hashtags.extend(["#Enigmas", "#MisteriosReales", "#Ingenieria"])
+    # 7. Hackeos, ciberseguridad y tecnología del siglo XXI
+    elif any(k in texto for k in ["hacker", "computadora", "virus", "código", "software", "internet", "cripto", "bitcoin", "gps", "celular", "wifi", "ia"]):
+        hashtags.extend(["#Ciberseguridad", "#Tecnologia", "#SigloXXI"])
+    # 8. Robos, golpes y crímenes insólitos
+    elif any(k in texto for k in ["robo", "bóveda", "fuga", "alcatraz", "atraco", "estafa", "banco", "joyería", "ladrón", "policía", "crimen"]):
         hashtags.extend(["#Atracos", "#CrimenReal"])
-    elif any(k in texto for k in ["asesinato", "crimen", "policía", "forense", "misterio"]):
-        hashtags.extend(["#CrimenReal", "#Misterios"])
-    elif any(k in texto for k in ["accidente", "caja negra", "avión", "desastre", "naufragio", "chernóbil"]):
-        hashtags.extend(["#Desastres", "#HistoriaReal"])
-    elif any(k in texto for k in ["parásito", "zombi", "hongo", "animal", "naturaleza", "biología"]):
-        hashtags.extend(["#Naturaleza", "#Biologia"])
-    elif any(k in texto for k in ["espacio", "física", "paradoja", "ciencia", "demon core", "átomo"]):
-        hashtags.extend(["#Ciencia", "#Fisica"])
-    elif any(k in texto for k in ["supervivencia", "naufragio", "avión", "selva", "desierto"]):
-        hashtags.extend(["#Supervivencia", "#Historia"])
     else:
-        hashtags.extend(["#Historia", "#LaCajaNegra"])
+        hashtags.extend(["#SabiasQue", "#Historia", "#LaCajaNegra"])
 
     return hashtags
 
@@ -43,24 +54,34 @@ def _obtener_hashtags_tematicos_es(tema: str, titulo: str) -> list[str]:
 def _obtener_hashtags_tematicos_en(tema: str, titulo: str) -> list[str]:
     """Genera hashtags en inglés de alto volumen para audiencia anglosajona."""
     texto = f"{tema} {titulo}".lower()
-    hashtags = ["#Shorts", "#DidYouKnow", "#History"]
+    hashtags = ["#Shorts", "#DidYouKnow", "#Curiosity"]
 
-    if any(k in texto for k in ["hacker", "cyber", "virus", "code", "software", "stuxnet", "bug"]):
-        hashtags.extend(["#CyberSecurity", "#Technology"])
-    elif any(k in texto for k in ["heist", "vault", "escape", "alcatraz", "robbery", "scam"]):
+    # 1. Everyday curiosities & 'Why' explanations
+    if any(k in texto for k in ["why", "color", "ice", "eye", "sky", "yawn", "mix", "light", "shadow", "mirror", "sleep", "body", "hiccup"]):
+        hashtags.extend(["#LearnOnTikTok", "#DailyScience", "#HowItWorks"])
+    # 2. Animals and nature
+    elif any(k in texto for k in ["animal", "dog", "bear", "cat", "bird", "species", "nature", "biology", "ocean", "wildlife", "creature"]):
+        hashtags.extend(["#AnimalFacts", "#WildLife", "#Nature"])
+    # 3. Science, medicine and accidental discoveries
+    elif any(k in texto for k in ["invent", "accident", "medicine", "lab", "physics", "chemistry", "atom", "experiment", "science", "cure"]):
+        hashtags.extend(["#Science", "#Discoveries", "#HistoryOfScience"])
+    # 4. Wars, kings, laws and bizarre conflicts
+    elif any(k in texto for k in ["war", "battle", "king", "emperor", "law", "treaty", "army", "military", "conflict", "dispute", "empire"]):
+        hashtags.extend(["#HistoryFacts", "#BizarreHistory", "#History"])
+    # 5. Impostors, fake nobles and art hoaxes
+    elif any(k in texto for k in ["impostor", "fake", "con artist", "noble", "hoax", "art", "museum", "scam", "forgery"]):
+        hashtags.extend(["#TrueScams", "#Impostors", "#RealStories"])
+    # 6. Enigmas, ghost ships and engineering fails
+    elif any(k in texto for k in ["ghost ship", "shipwreck", "plane", "disappearance", "tower", "bridge", "engineering", "enigma", "mystery"]):
+        hashtags.extend(["#Enigmas", "#RealMysteries", "#Engineering"])
+    # 7. Hacking, cybersecurity and modern tech
+    elif any(k in texto for k in ["hacker", "cyber", "virus", "code", "software", "internet", "crypto", "bitcoin", "gps", "phone", "wifi", "ai"]):
+        hashtags.extend(["#CyberSecurity", "#Technology", "#TechFacts"])
+    # 8. Heists and botched crimes
+    elif any(k in texto for k in ["heist", "vault", "escape", "alcatraz", "robbery", "scam", "bank", "jewelry", "thief", "crime"]):
         hashtags.extend(["#Heist", "#TrueCrime"])
-    elif any(k in texto for k in ["murder", "crime", "forensic", "mystery", "killer"]):
-        hashtags.extend(["#TrueCrime", "#Mysteries"])
-    elif any(k in texto for k in ["crash", "black box", "disaster", "plane", "chernobyl", "shipwreck"]):
-        hashtags.extend(["#Disasters", "#TrueStory"])
-    elif any(k in texto for k in ["parasite", "zombie", "fungus", "creature", "nature", "biology"]):
-        hashtags.extend(["#WildLife", "#Nature"])
-    elif any(k in texto for k in ["space", "physics", "paradox", "science", "demon core", "quantum"]):
-        hashtags.extend(["#Science", "#Physics"])
-    elif any(k in texto for k in ["survival", "lost", "ocean", "jungle", "desert"]):
-        hashtags.extend(["#Survival", "#TrueStory"])
     else:
-        hashtags.extend(["#Documentary", "#TheBlackBox"])
+        hashtags.extend(["#Documentary", "#History", "#TheBlackBox"])
 
     return hashtags
 
@@ -80,6 +101,19 @@ def _construir_titulo_con_hashtags(titulo: str, hashtags: list[str], max_len: in
     return candidato
 
 
+def _generar_frase_descripcion(tema: str, idioma: str = "es") -> str:
+    """Adapta la primera línea de la descripción para que suene natural tanto si es pregunta como si es hecho."""
+    tema_limpio = tema.strip().rstrip(".!?")
+    if idioma == "en":
+        if re.match(r"^(why|how|what|did you know)\b", tema_limpio, flags=re.IGNORECASE):
+            return f"Uncover the real facts behind: {tema_limpio}."
+        return f"Did you know that {tema_limpio}? Uncover the documented truth behind this fascinating real event."
+    else:
+        if re.match(r"^(por qué|cómo|qué|sabías que)\b", tema_limpio, flags=re.IGNORECASE):
+            return f"Descubre la explicación y los datos reales detrás de: {tema_limpio}."
+        return f"¿Sabías que {tema_limpio}? Descubre la historia y los hechos reales explicados de forma breve y clara."
+
+
 def generar_archivo_metadata(titulo: str, tema: str, nombre_base: str, idioma: str = "es") -> Path:
     """
     Crea un archivo .txt en outputs/metadata/ con títulos, descripciones y hashtags.
@@ -95,12 +129,13 @@ def generar_archivo_metadata(titulo: str, tema: str, nombre_base: str, idioma: s
     if idioma == "en":
         hashtags_lista = _obtener_hashtags_tematicos_en(tema, titulo)
         titulo_con_hashtags = _construir_titulo_con_hashtags(titulo, hashtags_lista, max_len=100)
-        hashtags_desc_set = set(hashtags_lista + ["#Declassified", "#ViralShorts", "#TrueStory", "#TheBlackBox"])
+        hashtags_desc_set = set(hashtags_lista + ["#DidYouKnow", "#ViralShorts", "#TrueStory", "#TheBlackBox"])
         hashtags_descripcion = " ".join(sorted(hashtags_desc_set))
 
+        frase_inicio = _generar_frase_descripcion(tema, idioma="en")
         descripcion_cuerpo = (
-            f"Did you know that {tema}? Uncover the documented truth behind this unbelievable real-world event.\n\n"
-            "Subscribe to The Black Box Archives and hit the bell for daily declassified stories.\n\n"
+            f"{frase_inicio}\n\n"
+            "Subscribe to The Black Box Archives and hit the bell for daily curiosity and history stories.\n\n"
             f"{hashtags_descripcion}"
         )
         encabezado = "METADATA FOR YOUTUBE SHORTS (THE BLACK BOX ARCHIVES // EN)"
@@ -115,9 +150,10 @@ def generar_archivo_metadata(titulo: str, tema: str, nombre_base: str, idioma: s
         hashtags_desc_set = set(hashtags_lista + ["#SabiasQue", "#AprendeAlgo", "#Reels", "#ParaTi", "#LaCajaNegra"])
         hashtags_descripcion = " ".join(sorted(hashtags_desc_set))
 
+        frase_inicio = _generar_frase_descripcion(tema, idioma="es")
         descripcion_cuerpo = (
-            f"¿Sabías que {tema}? Descubre la historia real detrás de este hecho fascinante explicado de forma breve y clara.\n\n"
-            "Suscríbete a La Caja Negra y activa las notificaciones para no perderte ninguna verdad desclasificada.\n\n"
+            f"{frase_inicio}\n\n"
+            "Suscríbete a La Caja Negra y activa las notificaciones para no perderte ninguna curiosidad explicada.\n\n"
             f"{hashtags_descripcion}"
         )
         encabezado = "METADATOS PARA YOUTUBE SHORTS (LA CAJA NEGRA // ES)"
