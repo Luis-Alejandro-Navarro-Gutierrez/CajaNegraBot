@@ -802,9 +802,9 @@ class CajaNegraStudio(ctk.CTk):
 
     def _pipeline_worker(self):
         try:
-            self.log("Consultando Groq con rotación temática (vectores aleatorios)...")
-            tema, indice_cat = pipeline_main.obtener_tema_automatico()
-            self.log(f"Tema seleccionado: '{tema}'")
+            self.log("Consultando Groq con rotación temática y equilibrio de épocas...")
+            tema, indice_cat, epoca = pipeline_main.obtener_tema_automatico()
+            self.log(f"Tema seleccionado [{epoca}]: '{tema}'")
 
             self.progress_bar.set(0.12)
 
@@ -892,7 +892,7 @@ class CajaNegraStudio(ctk.CTk):
             ruta_meta_es = generar_archivo_metadata(titulo_es, tema, f"{nombre_raiz}_es", idioma="es")
             ruta_meta_en = generar_archivo_metadata(titulo_en, tema, f"{nombre_raiz}_en", idioma="en")
 
-            pipeline_main._guardar_tema_en_historial(tema, indice_cat)
+            pipeline_main._guardar_tema_en_historial(tema, indice_cat, epoca)
 
             self.progress_bar.set(1.0)
             self.led_indicator.configure(text="● COMPLETADO", text_color=C_EMERALD)

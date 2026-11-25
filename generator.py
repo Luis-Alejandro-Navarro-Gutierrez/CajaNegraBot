@@ -111,9 +111,9 @@ def _validar_guion(data: dict, rango: tuple[int, int], idioma: str) -> str | Non
     palabras = _contar_palabras(narracion)
     minimo, maximo = rango
     if palabras < minimo - TOLERANCIA_PALABRAS:
-        return f"La narración tiene {palabras} palabras (con el cierre); debe tener entre {minimo} y {maximo}. Amplía el desarrollo con hechos reales."
+        return f"La narración tiene {palabras} palabras (con el cierre); debe tener entre {minimo} y {maximo}. Amplía la historia con contexto que ayude a entenderla, usando palabras sencillas y solo hechos confirmados."
     if palabras > maximo + TOLERANCIA_PALABRAS:
-        return f"La narración tiene {palabras} palabras (con el cierre); debe tener entre {minimo} y {maximo}. Recorta detalles secundarios."
+        return f"La narración tiene {palabras} palabras (con el cierre); debe tener entre {minimo} y {maximo}. Recorta detalles secundarios y conserva las explicaciones más claras, con palabras sencillas."
 
     guion["titulo"] = titulo
     guion["narracion"] = narracion
@@ -176,8 +176,13 @@ def generar_guion(tema: str, minimo: int = RANGO_ES[0], maximo: int = RANGO_ES[1
 Escribe un guion en español para un video vertical (Short) del canal '¿Sabías que...?' sobre este tema: "{tema}".
 
 TONO:
-- Cuéntalo como si le revelaras a un amigo, en una cafetería, el dato más increíble que acabas de descubrir.
-- Ritmo ágil, frases cortas, lenguaje cotidiano. CERO lenguaje poético, CERO metáforas vacías, CERO tecnicismos pesados.
+- Cuéntalo como una persona, en una conversación, compartiendo algo sorprendente que acaba de descubrir.
+- Usa español neutro y cotidiano, palabras comunes y verbos directos. Evita expresiones regionales difíciles de entender en otros países.
+- El guion debe entenderse al escucharlo una sola vez, incluso si quien lo oye no sabe nada del tema.
+- Haz frases breves y naturales, con una idea principal por frase. Evita oraciones largas, voz pasiva y construcciones formales o académicas.
+- Evita tecnicismos, siglas y palabras especializadas. Si un término técnico es indispensable, explícalo enseguida con palabras simples, sin interrumpir la historia.
+- Explica las cifras con contexto fácil de imaginar. No acumules nombres, fechas o datos en una misma frase.
+- No uses lenguaje poético, metáforas vacías ni comparaciones que cambien o exageren los hechos.
 - Mantén la tensión: cada frase debe dar ganas de escuchar la siguiente.
 
 ADAPTA EL ENFOQUE SEGÚN EL TIPO DE TEMA:
@@ -197,7 +202,7 @@ REGLAS ESTRICTAS:
 7. Escribe los números y años de forma que se lean bien en voz alta.
 
 Responde ÚNICAMENTE un JSON válido y cerrado con este formato:
-{{"guion": {{"titulo": "Título corto con gancho irresistible", "narracion": "Texto completo de la locución"}}}}
+{{"guion": {{"titulo": "Título corto, claro y atractivo", "narracion": "Texto completo de la locución"}}}}
 """
 
     mensajes = [
@@ -206,7 +211,8 @@ Responde ÚNICAMENTE un JSON válido y cerrado con este formato:
             "content": (
                 "Eres el guionista de '¿Sabías que...?' (La Caja Negra). Divulgas hechos reales y sorprendentes: "
                 "hackeos, robos, casos criminales documentados, ciencia, universo, planeta, orígenes de las cosas y desastres. "
-                "Eres riguroso con los hechos, dinámico y cercano. Respondes únicamente con un objeto JSON válido y cerrado."
+                "Eres riguroso con los hechos y explicas cada tema en español neutro, claro y cotidiano, "
+                "sin presuponer conocimientos previos. Respondes únicamente con un objeto JSON válido y cerrado."
             ),
         },
         {"role": "user", "content": prompt},
@@ -227,7 +233,11 @@ def traducir_guion_a_ingles(guion_es: dict) -> dict:
     prompt = f"""
 Translate and adapt this Spanish script for 'The Black Box Archives' vertical video (the English version of the "Did you know...?" channel).
 Keep the same fast-paced, curious, casual storytelling tone, like sharing a mind-blowing fact with a friend.
-If it explains why something happens, keep the explanation crystal clear without dry academic jargon.
+Write natural spoken English that a middle-school student with no background in the topic can understand on the first listen.
+Use common words, direct verbs, active voice, and short sentences with one main idea each. Avoid formal or academic phrasing,
+long sentences, unexplained acronyms, and technical terms. If a technical term is essential, explain it immediately in plain English.
+Give numbers enough context to make them easy to picture. Do not stack several names, dates, or facts into one sentence.
+Do not use regional slang or analogies that distort the facts.
 Keep every fact exactly as in the source: do NOT add, change or invent names, dates, numbers or details.
 If the source is about a crime or a hack, keep it informative and non-graphic, and never turn it into instructions.
 
@@ -243,7 +253,7 @@ Rules:
 6. The JSON must be strictly complete and closed.
 
 Return ONLY valid JSON:
-{{"guion": {{"titulo": "Punchy viral English title", "narracion": "Narration text"}}}}
+{{"guion": {{"titulo": "Short, clear, engaging title", "narracion": "Narration text"}}}}
 """
 
     mensajes = [
@@ -251,7 +261,7 @@ Return ONLY valid JSON:
             "role": "system",
             "content": (
                 "You write engaging, factually faithful curiosity scripts for 'The Black Box Archives'. "
-                "You translate without altering facts and explain the 'why' casually and clearly. "
+                "You adapt them into natural, accessible spoken English without altering facts or assuming prior knowledge. "
                 "Output strict, complete, properly closed JSON only."
             ),
         },

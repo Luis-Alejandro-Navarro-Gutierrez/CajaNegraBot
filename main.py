@@ -17,6 +17,7 @@ import shutil
 import sys
 import unicodedata
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 import moviepy.editor as mp
@@ -102,16 +103,19 @@ DOMINIOS = [
     },
 ]
 
-# Variación forzada en cada ejecución (época, región y ángulo)
-EPOCAS = [
-    "antigüedad o edad media",
-    "siglos XVI al XVIII",
-    "siglo XIX",
-    "primera mitad del siglo XX",
-    "años 50, 60 y 70",
-    "años 80 y 90",
-    "años 2000 en adelante",
-    "cualquier época (prioriza la menos conocida)",
+# La época se elige en dos grupos equilibrados y se registra en el historial:
+# así el modelo no puede quedarse sesgado hacia los siglos XVIII/XIX.
+EPOCAS_HISTORICAS = [
+    ("antes de 1800", 1, 1799),
+    ("siglo XIX (1800-1899)", 1800, 1899),
+    ("primera mitad del siglo XX (1900-1949)", 1900, 1949),
+    ("segunda mitad del siglo XX (1950-1999)", 1950, 1999),
+]
+ANIO_ACTUAL = date.today().year
+EPOCAS_SIGLO_XXI = [
+    ("años 2000-2009", 2000, 2009),
+    ("años 2010-2019", 2010, 2019),
+    (f"años 2020-{ANIO_ACTUAL}", 2020, ANIO_ACTUAL),
 ]
 REGIONES = [
     "Latinoamérica",
@@ -181,6 +185,7 @@ def _cargar_datos_historial() -> dict:
     data["temas"] = temas_limpios
     data.setdefault("ultimo_indice_categoria", -1)
     data.setdefault("categorias_recientes", [])
+    data.setdefault("epocas_recientes", [])
     return data
 
 
@@ -191,11 +196,14 @@ def _escribir_json_atomico(datos: dict) -> None:
     os.replace(tmp, ARCHIVO_HISTORIAL)
 
 
-def _guardar_tema_en_historial(tema: str, indice_categoria: int) -> None:
-    """Registra el tema procesado y la categoría usada."""
+def _guardar_tema_en_historial(tema: str, indice_categoria: int, epoca: str | None = None) -> None:
+    """Registra el tema procesado, la categoría y, si es automático, la época."""
     datos = _cargar_datos_historial()
     if tema.strip().lower() not in {t.lower() for t in datos["temas"]}:
         datos["temas"].append(tema.strip())
+    if epoca:
+        datos["epocas_recientes"].append(epoca)
+        datos["epocas_recientes"] = datos["epocas_recientes"][-20:]
     if 0 <= indice_categoria < len(DOMINIOS):
         datos["ultimo_indice_categoria"] = indice_categoria
         datos["categorias_recientes"].append(DOMINIOS[indice_categoria]["dominio"])
@@ -318,12 +326,30 @@ def _elegir_dominio(datos: dict, excluir: set[int] | None = None) -> int:
     return random.choice(pool)
 
 
+def _elegir_epoca(datos: dict) -> tuple[str, int, int]:
+    """Equilibra los episodios históricos y los del siglo XXI según el historial."""
+    recientes = datos.get("epocas_recientes", [])[-10:]
+    modernas = sum(epoca in {e[0] for e in EPOCAS_SIGLO_XXI} for epoca in recientes)
+    historicas = sum(epoca in {e[0] for e in EPOCAS_HISTORICAS} for epoca in recientes)
+
+    if modernas < historicas:
+        grupo = EPOCAS_SIGLO_XXI
+    elif historicas < modernas:
+        grupo = EPOCAS_HISTORICAS
+    elif not recientes:
+        # Empieza con un caso actual; las siguientes producciones compensan el balance.
+        grupo = EPOCAS_SIGLO_XXI
+    else:
+        grupo = random.choice((EPOCAS_HISTORICAS, EPOCAS_SIGLO_XXI))
+    return random.choice(grupo)
+
+
 def _limpiar_titulo(linea: str) -> str:
     linea = re.sub(r"^[\-\*\u2022\d\.\)\s]+", "", linea.strip())
     return linea.replace('"', "").replace("'", "").replace("*", "").replace("«", "").replace("»", "").strip()
 
 
-def obtener_tema_automatico(max_rondas: int = 9, candidatos_por_ronda: int = 6) -> tuple[str, int]:
+def obtener_tema_automatico(max_rondas: int = 9, candidatos_por_ronda: int = 6) -> tuple[str, int, str]:
     """Genera un hecho real nuevo comparándolo contra el 100% del historial."""
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
@@ -336,6 +362,8 @@ def obtener_tema_automatico(max_rondas: int = 9, candidatos_por_ronda: int = 6) 
     print(f"📚 Historial cargado: {len(temas_previos)} temas ya producidos.")
 
     idx_dominio = _elegir_dominio(datos)
+    epoca, anio_min, anio_max = _elegir_epoca(datos)
+    print(f"🗓️ Periodo seleccionado: {epoca} ({anio_min}-{anio_max}).")
     usados = {idx_dominio}
     rondas_en_dominio = 0
     rechazados: list[str] = []
@@ -351,7 +379,7 @@ def obtener_tema_automatico(max_rondas: int = 9, candidatos_por_ronda: int = 6) 
         rondas_en_dominio += 1
 
         dominio = DOMINIOS[idx_dominio]
-        epoca, region, angulo = random.choice(EPOCAS), random.choice(REGIONES), random.choice(ANGULOS)
+        region, angulo = random.choice(REGIONES), random.choice(ANGULOS)
 
         # Muestra para inspirar variedad: los más recientes + una muestra al azar del resto
         recientes = temas_previos[-30:]
@@ -367,12 +395,16 @@ real, verificable y sorprendente que deje al espectador pensando "no sabía eso"
 CATEGORÍA DE ESTE VIDEO: {dominio['dominio']}
 Pistas de estilo: {dominio['guia']}
 {('Tono: ' + dominio['tono']) if dominio.get('tono') else ''}
-Época sugerida: {epoca}
+PERIODO OBLIGATORIO: {epoca} (año del hecho entre {anio_min} y {anio_max}, inclusive).
+No propongas hechos de otra época. En cada título, añade el año exacto entre paréntesis,
+por ejemplo: "El caso de ... (2017)". Si no recuerdas con seguridad el año y el hecho,
+no lo propongas.
 Región sugerida: {region}
 Ángulo sugerido: {angulo}
 
 REGLAS OBLIGATORIAS:
 1. Hecho 100% real y documentado. Nada de ficción, leyendas sin respaldo ni metáforas.
+   Para casos recientes, evita noticias en desarrollo y no inventes nombres, fechas ni resultados.
 2. Incluye en el título el nombre real de la persona, lugar, objeto o evento.
 3. Evita los clichés más repetidos de internet; prefiere casos menos obvios.
 4. Debe ser un hecho DISTINTO a todos los del historial y a los rechazados.
@@ -409,6 +441,12 @@ máximo 12 palabras cada uno, llamativos y directos. Sin numeración, comillas n
         candidatos = []
         for linea in texto.splitlines():
             titulo = _limpiar_titulo(linea)
+            match_anio = re.search(r"\((\d{1,4})\)\s*$", titulo)
+            if not match_anio:
+                continue
+            anio_candidato = int(match_anio.group(1))
+            if not anio_min <= anio_candidato <= anio_max:
+                continue
             if len(titulo) >= 12 and titulo not in candidatos and titulo not in rechazados:
                 candidatos.append(titulo)
 
@@ -416,8 +454,8 @@ máximo 12 palabras cada uno, llamativos y directos. Sin numeración, comillas n
             if _buscar_coincidencia_local(candidato, indice) or _arbitro_ia_duplicado(client, candidato, temas_previos):
                 rechazados.append(candidato)
                 continue
-            print(f"🎯 Tema seleccionado [{dominio['dominio']}]: '{candidato}'")
-            return candidato, idx_dominio
+            print(f"🎯 Tema seleccionado [{epoca} | {dominio['dominio']}]: '{candidato}'")
+            return candidato, idx_dominio, epoca
 
         print(f"⚠️ Ronda {ronda + 1}/{max_rondas} sin tema válido. Reintentando con otro enfoque...")
 
@@ -433,8 +471,9 @@ máximo 12 palabras cada uno, llamativos y directos. Sin numeración, comillas n
 def producir_short_bilingue(tema: str = None) -> tuple[Path, Path]:
     """Ejecuta el ciclo de producción completo en Español e Inglés."""
     indice_categoria = -1
+    epoca = None
     if not tema or not tema.strip():
-        tema, indice_categoria = obtener_tema_automatico()
+        tema, indice_categoria, epoca = obtener_tema_automatico()
     else:
         tema = tema.strip()
         print(f"📌 Usando tema manual proporcionado: '{tema}'")
@@ -513,7 +552,7 @@ def producir_short_bilingue(tema: str = None) -> tuple[Path, Path]:
     # 6. Metadata de publicación y registro en historial
     generar_archivo_metadata(titulo=guion_es.get("titulo", tema), tema=tema, nombre_base=nombre_base, idioma="es")
     generar_archivo_metadata(titulo=guion_en.get("titulo", tema), tema=tema, nombre_base=nombre_base, idioma="en")
-    _guardar_tema_en_historial(tema, indice_categoria)
+    _guardar_tema_en_historial(tema, indice_categoria, epoca)
 
     print("\n" + "=" * 60)
     print("✔ PRODUCCIÓN FINALIZADA CON ÉXITO")
