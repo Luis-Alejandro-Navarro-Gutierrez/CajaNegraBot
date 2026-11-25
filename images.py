@@ -1,4 +1,9 @@
-"""Genera ilustraciones de cómic para curiosidades reales con Groq y ComfyUI local."""
+"""Genera ilustraciones de cómic para curiosidades reales ('¿Sabías que...?') con Groq y ComfyUI local.
+
+Cubre hackeos, robos, casos criminales, ciencia, universo, planeta, orígenes de las cosas y desastres.
+Cada escena recibe un rol de cámara (objeto, plano general, acción, personaje) calculado en código,
+así que funciona con cualquier número de escenas y evita rostros repetidos.
+"""
 
 import json
 import os
@@ -31,17 +36,49 @@ COMFYUI_CHECKPOINT = os.getenv("COMFYUI_CHECKPOINT", "arthemyComicsXL_v20.safete
 COMFYUI_WIDTH = 768
 COMFYUI_HEIGHT = 1344
 COMFYUI_OUTPUT_DIR = Path(os.getenv("COMFYUI_OUTPUT_DIR", str(BASE_DIR / "outputs" / "comfyui"))).expanduser().resolve()
+PREFIJO_SALIDA_COMFY = "CajaNegraBot_"
+MODELO_GROQ = "openai/gpt-oss-120b"
+
+# Rol de cámara por escena (se repite en ciclo: con 12 escenas queda 1-5-9 objeto, 2-6-10 general, etc.)
+ROLES_ESCENA = [
+    (
+        "OBJECT CLOSE-UP",
+        "ONE meaningful object or piece of evidence in tight close-up (e.g. a vault door, circuit board, telescope, "
+        "lab flask, old invention, newspaper clipping, evidence marker, ticking clock). NO people, NO faces.",
+    ),
+    (
+        "WIDE ESTABLISHING SHOT",
+        "A wide environment or landscape that places the story (e.g. a city street at dusk, a bank exterior, a server room, "
+        "a volcano, a desert, a launch pad, a laboratory, a harbor). NO people in the foreground, NO faces.",
+    ),
+    (
+        "ACTION / SITUATION",
+        "A dynamic moment told through the environment: motion, vehicles, smoke, sparks, flashing lights, small silhouettes "
+        "seen from far away or from behind. NO face close-ups.",
+    ),
+    (
+        "CHARACTER REACTION",
+        "ONE generic stylized character with a clear expressive face (shock, nervousness, irony, perplexity, determination). "
+        "Prefer investigators, witnesses, scientists, workers or bystanders; never show injured people.",
+    ),
+]
 
 
 def _limpiar_carpeta_comfyui() -> None:
-    """Vacía por completo la carpeta de salida temporal de ComfyUI."""
+    """Elimina los archivos temporales que genera este bot en la carpeta de salida de ComfyUI.
+
+    Solo borra archivos con el prefijo del bot, para no tocar otras imágenes si COMFYUI_OUTPUT_DIR
+    apunta a la carpeta de salida real de ComfyUI.
+    """
     if not COMFYUI_OUTPUT_DIR.exists():
         return
 
     time.sleep(1.0)  # Pausa breve para garantizar que ComfyUI haya liberado descriptores de archivo en Windows
     print(f"🧹 Limpiando archivos temporales en ComfyUI ({COMFYUI_OUTPUT_DIR.name})...")
-    
+
     for item in COMFYUI_OUTPUT_DIR.iterdir():
+        if not item.name.startswith(PREFIJO_SALIDA_COMFY):
+            continue
         for intento in range(3):
             try:
                 if item.is_file() or item.is_symlink():
@@ -86,7 +123,7 @@ def _generar_en_comfy(prompt: str, negative_prompt: str, escena: int, ruta_salid
         prompt=prompt,
         negative_prompt=negative_prompt,
         seed=secrets.randbelow(2**32 - 1),
-        nombre_salida=f"CajaNegraBot_{ruta_salida.stem}",
+        nombre_salida=f"{PREFIJO_SALIDA_COMFY}{ruta_salida.stem}",
     )
     try:
         respuesta = requests.post(
@@ -140,6 +177,16 @@ def _generar_en_comfy(prompt: str, negative_prompt: str, escena: int, ruta_salid
         imagen.convert("RGB").save(ruta_salida, format="JPEG", quality=95)
 
 
+# Abreviaturas e iniciales cuyo punto NO termina una oración
+_PATRON_ABREVIATURAS = re.compile(
+    r"(?:\bEE\.\s*UU\.|\bU\.\s?S\.|\bU\.\s?K\.|"
+    r"\b(?:Dra?|Sra?|Srta|Mr|Mrs|Ms|St|Jr|Lic|Ing|Prof|núm|aprox|etc)\."
+    r"|\b[ap]\.\s?m\.|\b[ad]\.\s?C\."
+    r"|\b[A-ZÁÉÍÓÚÑ]\.(?=\s+[A-ZÁÉÍÓÚÑ]))",
+    flags=re.IGNORECASE,
+)
+
+
 def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
     """Divide la narración en fragmentos contiguos y equilibrados, sin pedirle a Groq que los invente."""
     if total_escenas < 1:
@@ -155,13 +202,14 @@ def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
     if not texto:
         raise ValueError("La narración visual está vacía después de retirar el cierre.")
 
-    abreviaturas = []
-    def proteger_eeuu(match):
-        marcador = f"EEUUMARCADOR{len(abreviaturas)}"
-        abreviaturas.append((marcador, match.group(0)))
-        return marcador
+    # Protege abreviaturas con marcadores únicos y delimitados (evita choques tipo 1 vs 10)
+    protegidos: list[str] = []
 
-    texto_seguro = re.sub(r"\bEE\.\s*UU\.", proteger_eeuu, texto, flags=re.IGNORECASE)
+    def proteger(match):
+        protegidos.append(match.group(0))
+        return f"\x00{len(protegidos) - 1}\x00"
+
+    texto_seguro = _PATRON_ABREVIATURAS.sub(proteger, texto)
     unidades = [parte.strip() for parte in re.split(r"(?<=[.!?])\s+", texto_seguro) if parte.strip()]
 
     while len(unidades) < total_escenas:
@@ -184,9 +232,7 @@ def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
         unidades[indice:indice] = [izquierda, derecha]
 
     for i, unidad in enumerate(unidades):
-        for marcador, abreviatura in abreviaturas:
-            unidad = unidad.replace(marcador, abreviatura)
-        unidades[i] = unidad
+        unidades[i] = re.sub(r"\x00(\d+)\x00", lambda m: protegidos[int(m.group(1))], unidad)
 
     conteos = [len(re.findall(r"\S+", unidad)) for unidad in unidades]
     prefijos = [0]
@@ -224,10 +270,77 @@ def _segmentar_narracion(narracion: str, total_escenas: int) -> list[str]:
     return grupos
 
 
+def _generar_storyboard(client: Groq, prompt_analisis: str, total_escenas: int, intentos: int = 2) -> tuple[str, list[str]]:
+    """Pide a Groq el contexto visual común y un prompt por escena. Reintenta si la respuesta no es válida."""
+    ultimo_error = None
+    for intento in range(1, intentos + 1):
+        try:
+            completion = client.chat.completions.create(
+                model=MODELO_GROQ,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional comic storyboard director. You enforce strict camera variety, "
+                            "factual accuracy and non-graphic imagery. Output only valid JSON."
+                        ),
+                    },
+                    {"role": "user", "content": prompt_analisis},
+                ],
+                temperature=0.3,
+                max_completion_tokens=4096,
+                extra_body={"reasoning_effort": "low"},
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "storyboard_prompts",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "contexto_visual": {"type": "string"},
+                                "prompts": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {"prompt_visual": {"type": "string"}},
+                                        "required": ["prompt_visual"],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                            },
+                            "required": ["contexto_visual", "prompts"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            )
+
+            data = json.loads(completion.choices[0].message.content or "")
+            escenas = data.get("prompts", [])
+            if len(escenas) != total_escenas:
+                raise ValueError(f"Se esperaban {total_escenas} prompts visuales, se recibieron {len(escenas)}.")
+            if any(
+                not isinstance(e, dict) or not isinstance(e.get("prompt_visual"), str) or not e["prompt_visual"].strip()
+                for e in escenas
+            ):
+                raise ValueError("Cada escena debe incluir un prompt_visual no vacío.")
+
+            contexto = str(data.get("contexto_visual", "")).strip().rstrip(".,")
+            return contexto, [e["prompt_visual"].strip() for e in escenas]
+        except Exception as e:
+            ultimo_error = e
+            if intento < intentos:
+                print(f"  ⚠ Storyboard inválido (intento {intento}/{intentos}); reintentando: {e}")
+                time.sleep(2)
+
+    raise RuntimeError(f"Error al estructurar storyboard con Groq: {ultimo_error}")
+
+
 def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: str, total_escenas: int = 12) -> list[Path]:
     """
     Asocia cada fragmento de una curiosidad real con una ilustración de cómic a color y la renderiza en ComfyUI.
-    Al finalizar la generación de todas las escenas, limpia la carpeta de salida temporal de ComfyUI.
+    Al finalizar la generación de todas las escenas, limpia los temporales del bot en la carpeta de ComfyUI.
     """
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
@@ -240,10 +353,13 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     print(f"Analizando guion con Groq para ilustrar la curiosidad en {total_escenas} escenas con variedad cinematográfica...")
 
     fragmentos_guion = _segmentar_narracion(guion_completo, total_escenas)
+    roles = [ROLES_ESCENA[(i - 1) % len(ROLES_ESCENA)] for i in range(1, total_escenas + 1)]
+
     fragmentos_formateados = "\n".join(
-        f'{i}. {json.dumps(fragmento, ensure_ascii=False)}'
+        f'{i}. [{roles[i - 1][0]}] {json.dumps(fragmento, ensure_ascii=False)}'
         for i, fragmento in enumerate(fragmentos_guion, 1)
     )
+    descripcion_roles = "\n".join(f"- {nombre}: {descripcion}" for nombre, descripcion in ROLES_ESCENA)
 
     estilo_comic = (
         "Modern comic book illustration, vibrant balanced colors, clear black ink outlines, "
@@ -252,94 +368,53 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     )
 
     prompt_analisis = f"""
-    You create accurate visual storyboard prompts for a factual curiosity comic short.
-    The narration is in Spanish. Return exactly {total_escenas} image prompts, one for each fixed scene excerpt below, in the exact same order.
-    
-    Full story context:
-    {guion_completo}
+You create accurate visual storyboard prompts for a factual curiosity comic short ("Did you know...?").
+The story may be about a hack, a heist, a criminal case, science, space, the planet, the origin of an invention or custom, or a disaster.
+The narration is in Spanish. Return exactly {total_escenas} image prompts, one for each fixed scene excerpt below, in the exact same order.
 
-    FIXED SCENE EXCERPTS — do not rewrite, merge, skip, reorder, or repeat them:
-    {fragmentos_formateados}
+Full story context:
+{guion_completo}
 
-    MANDATORY CINEMATIC SHOT DISTRIBUTION (AVOID ENDLESS HUMAN FACES):
-    You MUST alternate the camera focus across the 12 scenes following this exact framework:
-- SCENES 1, 5, 9 (OBJECT CLOSE-UPS / STILL LIFE): Focus exclusively on meaningful objects, instruments, or tech (e.g., smoking coffee cup on a circuit board, open briefcase with documents, red warning screen, locked door, blueprints, cut cables). NO human faces.
-- SCENES 2, 6, 10 (WIDE SHOTS / LANDSCAPES): Wide exterior or interior environments (e.g., imposing government buildings, busy city avenues at dusk, dimly lit server room aisles, quiet roads, satellite dish field). NO human faces.
-- SCENES 3, 7, 11 (ACTION / SITUATION): Dynamic moments or environmental drama (e.g., vehicles speeding away, shadows running along a wall, smoke escaping a server vent, flashing red emergency lights).
-- SCENES 4, 8, 12 (CHARACTERS / REACTIONS): ONLY in these three scenes can you illustrate a specific person or character, showing clear expressive facial reactions (shock, nervousness, irony, or perplexity).
+FIXED SCENE EXCERPTS (each tagged with its camera role). Do not rewrite, merge, skip, reorder, or repeat them:
+{fragmentos_formateados}
 
-    RULES FOR EACH NUMBERED PROMPT (STRICT):
-- Choose EXACTLY ONE primary subject: either ONE object, ONE environment, or ONE character (only in allowed reaction scenes).
-- ANTI-FUSION / ANTI-MUTATION: NEVER draw anthropomorphic creatures, animal-human hybrids, or extra limbs.
-- POSE & PROPORTIONS: Specify exact positions (e.g., "both hands resting on the control desk"). Never describe floating or ambiguous limbs.
+CAMERA ROLES (follow the tag of each scene strictly; this avoids endless human faces):
+{descripcion_roles}
+
+FIELD "contexto_visual":
+- At most 15 English words describing the era, country or location, and dominant color palette of the whole story.
+- Do NOT describe any person in it. It is added automatically to every scene, so keep it generic.
+
+RULES FOR EACH NUMBERED PROMPT (STRICT):
+- Illustrate what the excerpt says, using the correct era: period-accurate clothing, vehicles, buildings and technology.
+- Each prompt must be self-contained: image generation is independent per scene, so restate the key setting and subject.
+- Choose EXACTLY ONE primary subject: either ONE object, ONE environment, or ONE character (only in CHARACTER REACTION scenes).
+- Never depict real, identifiable people; use generic stylized characters. Never include real brands or logos.
+- Keep every scene non-graphic: NO blood, gore, corpses, wounds, nudity or visible suffering. For crimes, imply events through
+  evidence markers, police tape, empty rooms, shadows, newspaper clippings or reactions instead of showing violence.
+- Hacks and technology: show abstract glowing code shapes, warning lights and hardware. NO readable words, letters or numbers on screens, papers or signs.
+- ANTI-FUSION / ANTI-MUTATION: never draw anthropomorphic creatures, animal-human hybrids, or extra limbs. Animals only if the story is about them, anatomically accurate.
+- POSE & PROPORTIONS: specify exact positions (e.g. "both hands resting on the control desk"). Never describe floating or ambiguous limbs.
 - NO text, subtitles, speech bubbles, watermarks, comic panels, or collage frames in the image.
-- Write 35–45 clear, concrete descriptive words in English per prompt.
+- Write 35-45 clear, concrete descriptive words in English per prompt.
 
-    Return ONLY valid JSON with exactly {total_escenas} prompts:
-    {{"prompts":[{{"prompt_visual":"literal visual description for scene"}}]}}
-    """
-    try:
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional comic storyboard director. You enforce strict camera variety and avoid repetitive portraits. Output only valid JSON.",
-                },
-                {"role": "user", "content": prompt_analisis},
-            ],
-            temperature=0.3,
-            reasoning_effort="low",
-            max_completion_tokens=4096,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "storyboard_prompts",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "prompts": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {"prompt_visual": {"type": "string"}},
-                                    "required": ["prompt_visual"],
-                                    "additionalProperties": False,
-                                },
-                            }
-                        },
-                        "required": ["prompts"],
-                        "additionalProperties": False,
-                    },
-                },
-            },
-        )
+Return ONLY valid JSON with exactly {total_escenas} prompts:
+{{"contexto_visual":"era, place and palette","prompts":[{{"prompt_visual":"literal visual description for scene"}}]}}
+"""
+    contexto_visual, storyboard_prompts = _generar_storyboard(client, prompt_analisis, total_escenas)
 
-        data = json.loads(completion.choices[0].message.content)
-        escenas_groq = data.get("prompts", [])
-        if len(escenas_groq) != total_escenas:
-            raise ValueError(f"Se esperaban {total_escenas} prompts visuales, se recibieron {len(escenas_groq)}.")
-        if any(
-            not isinstance(escena, dict)
-            or not isinstance(escena.get("prompt_visual"), str)
-            or not escena["prompt_visual"].strip()
-            for escena in escenas_groq
-        ):
-            raise ValueError("Cada escena debe incluir un prompt_visual no vacío.")
-
-        storyboard_prompts = [escena["prompt_visual"].strip() for escena in escenas_groq]
-    except Exception as e:
-        raise RuntimeError(f"Error al estructurar storyboard con Groq: {e}")
-
-    # Blindaje contra NSFW, quimeras, miembros extra y deformidades
+    # Blindaje contra NSFW, contenido gráfico, quimeras, miembros extra y deformidades
     negative_prompt = (
         "nsfw, nude, nudity, topless, cleavage, bare breasts, nipples, underwear, lingerie, suggestive, exposed skin, "
+        "blood, bloody, gore, corpse, dead body, wounds, mutilation, graphic violence, "
         "mutant, chimera, chimeric fusion, anthropomorphic insect, animal human hybrid, insect head on human body, "
         "extra arms, third arm, extra hands, extra legs, extra limbs, extra fins, duplicate tails, dorsal fin duplicate, "
         "fused limbs, deformed anatomy, distorted face, bad hands, missing fingers, extra fingers, malformed body, "
-        "photorealistic, 3d render, anime, manga, dark shadows, gritty horror, monochrome, sketch, comic panels, collage, split screen, text, watermark, logo"
+        "photorealistic, 3d render, anime, manga, dark shadows, gritty horror, monochrome, sketch, comic panels, collage, split screen, "
+        "text, gibberish text, letters, numbers, watermark, logo"
     )
+
+    prefijo_comun = f"{estilo_comic}, {contexto_visual}" if contexto_visual else estilo_comic
 
     prompts_dir = BASE_DIR / "outputs" / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -347,10 +422,11 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     prompts_por_escena = [
         {
             "escena": i,
+            "rol_camara": roles[i - 1][0],
             "fragmento_guion": fragmentos_guion[i - 1],
             "fragmento_coincide_literalmente": True,
             "prompt_storyboard": prompt_escena,
-            "prompt_enviado_a_comfyui": f"{estilo_comic}, {prompt_escena}",
+            "prompt_enviado_a_comfyui": f"{prefijo_comun}, {prompt_escena}",
         }
         for i, prompt_escena in enumerate(storyboard_prompts, 1)
     ]
@@ -359,6 +435,7 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
         "nombre_base": nombre_base,
         "total_escenas": total_escenas,
         "estilo_comun": estilo_comic,
+        "contexto_visual": contexto_visual,
         "negative_prompt_comun": negative_prompt,
         "escenas": prompts_por_escena,
     }
@@ -370,9 +447,9 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
     lista_rutas_imagenes = []
     print(f"Renderizando escenas con ComfyUI en {COMFYUI_URL} usando {COMFYUI_CHECKPOINT}...")
 
-    for i, prompt_escena in enumerate(storyboard_prompts, 1):
+    for i in range(1, total_escenas + 1):
         ruta_salida = output_dir / f"{nombre_base}_escena_{i}.jpg"
-        print(f"  -> Generando escena {i}/{total_escenas} en ComfyUI...")
+        print(f"  -> Generando escena {i}/{total_escenas} en ComfyUI ({roles[i - 1][0].lower()})...")
 
         prompt_final = prompts_por_escena[i - 1]["prompt_enviado_a_comfyui"]
 
@@ -396,7 +473,7 @@ def generar_secuencia_imagenes(guion_completo: str, titulo: str, nombre_base: st
             f"Storyboard incompleto: se generaron {len(lista_rutas_imagenes)}/{total_escenas} imágenes."
         )
 
-    # Limpieza final de la carpeta outputs/comfyui una vez convertidos todos los JPGs
+    # Limpieza final de los temporales del bot en la carpeta de ComfyUI una vez convertidos todos los JPGs
     _limpiar_carpeta_comfyui()
 
     print(f"✔ Generación completada. Guardadas {len(lista_rutas_imagenes)}/{total_escenas} imágenes.")

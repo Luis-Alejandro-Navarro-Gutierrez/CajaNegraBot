@@ -2,7 +2,7 @@
   <b>English</b> | <a href="./README.es.md">Español</a>
 </p>
 
-# 🎬 CajaNegra Studio // Shorts Automation Suite
+# 🎬 CajaNegra Studio
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Groq](https://img.shields.io/badge/Groq-API-F55036?style=for-the-badge)](https://groq.com)
@@ -10,108 +10,138 @@
 [![Whisper](https://img.shields.io/badge/Subtitles-OpenAI%20Whisper-412991?style=for-the-badge)](https://github.com/openai/whisper)
 [![ComfyUI](https://img.shields.io/badge/ImageGen-ComfyUI-black?style=for-the-badge)](https://github.com/comfyanonymous/ComfyUI)
 
-> **CajaNegra Studio** is a desktop workstation and automated pipeline designed to create vertical documentary videos (YouTube Shorts, Reels, TikTok) focused on real-world curiosities, science, and historical events.
+**CajaNegra Studio** is a desktop application and a set of pipelines for producing documentary videos about real curiosities, science, history, and unusual cases. It supports two formats: bilingual vertical Shorts and long-form documentaries in Spanish.
 
-The system integrates **Groq** for scriptwriting, **Edge-TTS** for neural voice synthesis, local comic-style generation via **ComfyUI (SDXL)**, cinematic composition through **MoviePy**, and word-by-word dynamic subtitles powered by **OpenAI Whisper** and **FFmpeg**.
+The graphical interface is built with CustomTkinter. Groq generates scripts and metadata; Edge-TTS synthesizes narration; ComfyUI generates illustrations locally; and MoviePy, FFmpeg, and Whisper handle video assembly and subtitles.
 
----
+## Production formats
 
-## 🖥️ Graphical Interface (Studio Dashboard)
+### Vertical Shorts
 
-The desktop application features a three-column layout styled with an eye-comfort Charcoal/Slate palette:
-
-* **Pipeline Control Panel:** Supports custom topics or automated cyclic rotation across 10 documentary niches, real-time progress tracking, and telemetry output console.
-* **Publishing Center:** Dynamic title formatting with a character counter, ready-to-copy description templates, and schedule slot checkboxes.
-* **Scene Monitor & Native Preview:** Live monitor tracking ComfyUI scene renders, along with an on-demand preview button with synchronized audio.
-* **Storage Manager:** Dedicated action to safely purge intermediate files (JSON, audio, and scene images) while keeping the final rendered video intact.
-
----
-
-## ⚙️ Pipeline Architecture
+The Shorts workflow creates 9:16 videos for YouTube Shorts, Reels, and TikTok. It can use a manually supplied topic or choose one automatically, avoiding recent topics in the history and rotating across categories. It generates Spanish and English scripts, comic-style scene images, narration, word-by-word subtitles, an edit with Ken Burns motion, and metadata files.
 
 ```text
-[Topic Input / Cyclic Rotation] 
-           │
-           ▼
-[Groq LLM] ──────────► Structured Script (~80s / 180-200 words)
-           │
-           ├─────────► [Edge-TTS] ──► Voiceover Synthesis (Spanish - Álvaro)
-           │
-           ├─────────► [Groq Prompts] ──► [Local ComfyUI] ──► 12 Comic Frames (SDXL)
-           │
-           ▼
-[MoviePy Engine] ────► 9:16 Assembly + Ken Burns Zoom + Background Audio Loop
-           │
-           ▼
-[Whisper + FFmpeg] ──► Word Timestamp Alignment & Burned ASS Subtitles
-           │
-           ▼
-[Outputs / Videos] ──► Production-ready Short (.mp4)
+[Manual topic or topic rotation]
+               ↓
+       [Script with Groq]
+        ↙             ↘
+ [Edge-TTS voice]  [Prompts + ComfyUI]
+        ↘             ↙
+        [Vertical edit]
+               ↓
+ [Whisper + FFmpeg: subtitles]
+               ↓
+       [Short MP4 + metadata]
 ```
 
----
+### Long-form documentaries
 
-## 📋 Prerequisites
+The long-form workflow creates narrated Spanish episodes of approximately 8–10 minutes, structured as 36 synchronized scenes. The script is saved as an episode record; voiceover and panoramic 16:9 illustrations are produced next. The pipeline creates a text-overlaid thumbnail, assembles the video with Ken Burns motion and scene-synchronized subtitles, and generates YouTube metadata with a description and timestamps.
 
-1. **Python 3.12+** installed.
-2. **FFmpeg** installed and accessible via system `PATH`.
-3. **ComfyUI** running locally at `http://127.0.0.1:8188` with the `arthemyComicsXL_v20.safetensors` checkpoint.
-4. An active **Groq Console** API Key.
+```text
+[Episode plan and 36-scene script]
+                   ↓
+       [Edge-TTS voice + timings]
+                   +
+       [36 panoramic ComfyUI images]
+                   ↓
+        [Thumbnail + assembly]
+                   ↓
+ [Video MP4 + metadata and timestamps]
+```
 
----
+The generator plans episodes around unusual cases and stories and keeps a topic history to reduce repetition. The final runtime depends on the generated narration.
 
-## 🚀 Setup & Installation
+## Graphical interface
 
-### 1. Clone the repository
-```bash
-git clone [https://github.com/Luis-Alejandro-Navarro-Gutierrez/CajaNegraBot.git](https://github.com/Luis-Alejandro-Navarro-Gutierrez/CajaNegraBot.git)
+Run `app_gui.py` to open CajaNegra Studio. The dashboard supports both Shorts and long-form documentaries, displays progress and production logs, and provides scene review and content preview. It also includes publishing utilities and cleanup for intermediate files.
+
+Features include manual topic selection or automatic topic rotation, a ComfyUI scene monitor, audio preview, publishing utilities, and cleanup of intermediate assets.
+
+## Requirements
+
+1. Python 3.12 or later.
+2. FFmpeg, with both `ffmpeg` and `ffprobe` available on `PATH`.
+3. ComfyUI running locally, at `http://127.0.0.1:8188` by default, with an SDXL-compatible checkpoint installed. The configured default is `arthemyComicsXL_v20.safetensors`.
+4. A Groq API key.
+
+## Installation
+
+```powershell
+git clone https://github.com/Luis-Alejandro-Navarro-Gutierrez/CajaNegraBot.git
 cd CajaNegraBot
-```
-
-### 2. Set up a virtual environment
-```bash
-# Windows
 python -m venv venv
 venv\Scripts\activate
-```
-
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
 Create a `.env` file in the project root:
+
 ```ini
-GROQ_API_KEY=your_groq_api_key_here
-COMFYUI_URL=[http://127.0.0.1:8188](http://127.0.0.1:8188)
+GROQ_API_KEY=your_groq_api_key
+COMFYUI_URL=http://127.0.0.1:8188
 COMFYUI_CHECKPOINT=arthemyComicsXL_v20.safetensors
 ```
 
-### 5. Launch the application
-* **GUI Mode (Recommended):**
-  ```bash
-  python app_gui.py
-  ```
-* **CLI Mode (Batch execution):**
-  ```bash
-  python main.py
-  ```
+## Running
 
----
+### Desktop application
 
-## 📦 Build Executable (.exe)
+```powershell
+python app_gui.py
+```
 
-To bundle the application into a standalone binary:
+### Shorts pipeline from the terminal
 
-```bash
+```powershell
+python main.py
+```
+
+### Full long-form documentary pipeline from the terminal
+
+```powershell
+python longform_pipeline.py
+```
+
+The long-form pipeline runs script generation, voice and image production, thumbnail creation, video assembly, and metadata generation in sequence. ComfyUI must be running before starting either workflow that generates images.
+
+## Output files
+
+Results are stored under `outputs/`:
+
+| Path | Contents |
+| --- | --- |
+| `outputs/json/` | Shorts scripts in JSON format |
+| `outputs/audio/` | Shorts narration and timing files |
+| `outputs/images/` and `outputs/prompts/` | Shorts images and prompts |
+| `outputs/videos/` | Final MP4 videos from both formats |
+| `outputs/documentales_largos/` | Structured long-form documentary scripts |
+| `outputs/produccion_largos/<episode>/` | Documentary audio, images, timings, and thumbnail |
+| `outputs/metadata/` | Generated publishing metadata |
+
+Topic histories are stored in `historial_temas.json` and `historial_largos.json` in the project root.
+
+## Main modules
+
+| File | Responsibility |
+| --- | --- |
+| `app_gui.py` | Desktop interface |
+| `main.py` | Shorts orchestration and topic selection |
+| `generator.py`, `images.py`, `tts.py` | Shorts scripts, images, and narration |
+| `video.py`, `subtitles.py`, `metadata.py` | Shorts assembly, subtitles, and metadata |
+| `longform_pipeline.py` | Long-form documentary orchestration |
+| `longform_generator.py`, `longform_producer.py` | Documentary scripts, narration, and images |
+| `crear_miniatura.py`, `longform_assembler.py`, `longform_metadata.py` | Documentary thumbnail, assembly, and metadata |
+| `assets/` | Static resources such as music and logos |
+
+## Building an executable
+
+The project includes a PyInstaller specification (`CajaNegra_Studio.spec`). Packaging depends on the application's dependencies and required resources being available in the build environment. To package the GUI, run:
+
+```powershell
 pyinstaller --noconsole --onefile --clean --collect-data whisper --collect-data customtkinter --name "CajaNegra_Studio" app_gui.py
 ```
 
-The compiled binary will be placed inside `dist/CajaNegra_Studio.exe`.
+## License
 
----
-
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for details.
+The previous documentation declared an MIT license, but this checkout does not include a `LICENSE` file. Add the appropriate license file if you intend to distribute the project under those terms.
